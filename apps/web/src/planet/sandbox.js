@@ -156,7 +156,10 @@ export class RegionSandboxLayer {
     const baseScale = entry.mesh.scale.clone();
     entry.mesh.scale.multiplyScalar(1.08);
     setTimeout(() => {
-      entry.mesh.scale.copy(baseScale);
+      // Guard: object may have been removed during the timeout
+      if (this.objects.has(objectId)) {
+        entry.mesh.scale.copy(baseScale);
+      }
     }, 180);
   }
 

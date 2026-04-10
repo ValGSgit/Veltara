@@ -251,7 +251,8 @@ export function applyObjectInteraction(
       return { ok: false, code: 'NO_READY_CRAFTS', message: 'No completed crafts ready to collect.' };
     }
 
-    state.queue = state.queue.map((job) => (job.status === 'ready' ? { ...job, status: 'collected' } : job));
+    // Remove collected jobs to prevent unbounded queue growth
+    state.queue = state.queue.filter((job) => job.status !== 'ready' && job.status !== 'collected');
 
     const updated = {
       ...withState,

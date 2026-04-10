@@ -35,7 +35,7 @@ const renderer = new THREE.WebGLRenderer({
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const scene = new THREE.Scene();
@@ -117,12 +117,22 @@ document.body.appendChild(loadingScreen);
 let socket = null;
 
 function connectToRegion(regionId, token) {
-  socket?.disconnect();
+  if (socket) {
+    clearInterval(socket._pingInterval);
+    socket.disconnect();
+  }
   socket = new RegionSocket(regionId, token);
 
   socket.on('connected', () => {
     store.set('wsConnected', true);
     store.set('wsReconnecting', false);
+    store.set('wsLatency', null);
+    // Clear stale state from previous connection — fresh data arrives via initial_state
+    store.set('players', new Map());
+    store.set('chatMessages', []);
+    sandbox.applySnapshot([]);
+    store.set('sandboxObjects', new Map());
+    store.set('selectedSandboxObjectId', null);
     toast.success('Connected to planet!');
   });
 
@@ -237,11 +247,26 @@ function connectToRegion(regionId, token) {
     }
   });
 
+  socket.on('error', (payload) => {
+    const msg = payload?.message ?? payload?.code ?? 'Unknown error';
+    toast.error(msg);
+  });
+
   socket.on('pong', ({ latency }) => {
-    // Could display latency in HUD
+    store.set('wsLatency', latency);
   });
 
   socket.connect();
+
+  // Periodic ping for latency tracking and dead connection detection
+  const pingInterval = setInterval(() => {
+    if (socket?.isConnected) {
+      socket.ping();
+    }
+  }, 15000);
+
+  // Store cleanup ref so we can clear on next connect
+  socket._pingInterval = pingInterval;
 }
 
 // ─── Chat sending ─────────────────────────────────────────────────────────────
@@ -285,6 +310,87 @@ document.addEventListener('leave-region-land', () => {
   leaveRegionLand();
 });
 
+function sendSandboxInteraction(interactionType, payload) {
+  const selectedId = store.get('selectedSandboxObjectId');
+  if (!selectedId || !socket?.isConnected) return;
+
+  const selected = sandbox.getObjectById(selectedId);
+  if (!selected) return;
+
+  socket.send('region_action', {
+    type: 'object_interact',
+    data: {
+      object_id: selected.id,
+      interaction_type: interactionType,
+      payload,
+    },
+  });
+}
+
+function rotateSelectedSandboxObject() {
+  const selectedId = store.get('selectedSandboxObjectId');
+  if (!selectedId || !socket?.isConnected) return;
+
+  const selected = sandbox.getObjectById(selectedId);
+  if (!selected) return;
+
+  const userId = store.get('user')?.id;
+  if (selected.owner_id !== userId) return;
+
+  socket.send('region_action', {
+    type: 'object_upsert',
+    data: {
+      id: selected.id,
+      kind: selected.kind,
+      material: selected.material,
+      position: selected.position,
+      rotation: {
+        x: selected.rotation.x,
+        y: Number((selected.rotation.y + 0.25).toFixed(3)),
+        z: selected.rotation.z,
+      },
+      scale: selected.scale,
+      interactive: selected.interactive,
+      metadata: selected.metadata,
+    },
+  });
+}
+
+function removeSelectedSandboxObject() {
+  const selectedId = store.get('selectedSandboxObjectId');
+  if (!selectedId || !socket?.isConnected) return;
+
+  const selected = sandbox.getObjectById(selectedId);
+  if (!selected) return;
+
+  const userId = store.get('user')?.id;
+  if (selected.owner_id !== userId) return;
+
+  socket.send('region_action', {
+    type: 'object_remove',
+    data: { object_id: selectedId },
+  });
+}
+
+document.addEventListener('sandbox-ui-action', (e) => {
+  const action = e.detail?.action;
+  if (!action) return;
+
+  if (action === 'use') {
+    sendSandboxInteraction('use', { scene_mode: store.get('sceneMode') });
+    return;
+  }
+
+  if (action === 'rotate') {
+    rotateSelectedSandboxObject();
+    return;
+  }
+
+  if (action === 'remove') {
+    removeSelectedSandboxObject();
+  }
+});
+
 // ─── Planet double-click → focus region ──────────────────────────────────────
 
 canvas.addEventListener('dblclick', (e) => {
@@ -316,20 +422,13 @@ canvas.addEventListener('click', (e) => {
   if (selectedObject) {
     sandbox.setSelected(selectedObject.id);
     store.set('selectedSandboxObjectId', selectedObject.id);
-
-    if (socket?.isConnected) {
-      socket.send('region_action', {
-        type: 'object_interact',
-        data: {
-          object_id: selectedObject.id,
-          interaction_type: 'use',
-          payload: {
-            scene_mode: store.get('sceneMode'),
-          },
-        },
-      });
-    }
     return;
+  }
+
+  // Click on empty space deselects
+  if (store.get('selectedSandboxObjectId')) {
+    sandbox.setSelected(null);
+    store.set('selectedSandboxObjectId', null);
   }
 
   if (!store.get('sandboxBuildMode')) return;
@@ -360,6 +459,10 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
+  // Don't hijack keys when the user is typing in an input or textarea
+  const tag = e.target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+
   if (e.key.toLowerCase() === 'b') {
     const next = !store.get('sandboxBuildMode');
     store.set('sandboxBuildMode', next);
@@ -378,100 +481,42 @@ window.addEventListener('keydown', (e) => {
   if (!isOwner) return;
 
   if (e.key === 'Delete') {
-    socket.send('region_action', {
-      type: 'object_remove',
-      data: { object_id: selectedId },
-    });
+    removeSelectedSandboxObject();
     return;
   }
 
   if (e.key.toLowerCase() === 'r') {
-    socket.send('region_action', {
-      type: 'object_upsert',
-      data: {
-        id: selected.id,
-        kind: selected.kind,
-        material: selected.material,
-        position: selected.position,
-        rotation: {
-          x: selected.rotation.x,
-          y: Number((selected.rotation.y + 0.25).toFixed(3)),
-          z: selected.rotation.z,
-        },
-        scale: selected.scale,
-        interactive: selected.interactive,
-        metadata: selected.metadata,
-      },
-    });
+    rotateSelectedSandboxObject();
     return;
   }
 
   if (e.key.toLowerCase() === 'l') {
-    socket.send('region_action', {
-      type: 'object_interact',
-      data: {
-        object_id: selected.id,
-        interaction_type: 'door_lock',
-      },
-    });
+    sendSandboxInteraction('door_lock');
     return;
   }
 
   if (e.key.toLowerCase() === 'u') {
-    socket.send('region_action', {
-      type: 'object_interact',
-      data: {
-        object_id: selected.id,
-        interaction_type: 'door_unlock',
-      },
-    });
+    sendSandboxInteraction('door_unlock');
     return;
   }
 
   if (e.key.toLowerCase() === 'p') {
-    socket.send('region_action', {
-      type: 'object_interact',
-      data: {
-        object_id: selected.id,
-        interaction_type: 'storage_put',
-        payload: { item_id: 'ore', count: 1 },
-      },
-    });
+    sendSandboxInteraction('storage_put', { item_id: 'ore', count: 1 });
     return;
   }
 
   if (e.key.toLowerCase() === 't') {
-    socket.send('region_action', {
-      type: 'object_interact',
-      data: {
-        object_id: selected.id,
-        interaction_type: 'storage_take',
-        payload: { item_id: 'ore', count: 1 },
-      },
-    });
+    sendSandboxInteraction('storage_take', { item_id: 'ore', count: 1 });
     return;
   }
 
   if (e.key.toLowerCase() === 'c') {
-    socket.send('region_action', {
-      type: 'object_interact',
-      data: {
-        object_id: selected.id,
-        interaction_type: 'craft_start',
-        payload: { recipe: 'iron_ingot', duration_ms: 15000 },
-      },
-    });
+    sendSandboxInteraction('craft_start', { recipe: 'iron_ingot', duration_ms: 15000 });
     return;
   }
 
   if (e.key.toLowerCase() === 'g') {
-    socket.send('region_action', {
-      type: 'object_interact',
-      data: {
-        object_id: selected.id,
-        interaction_type: 'craft_collect',
-      },
-    });
+    sendSandboxInteraction('craft_collect');
   }
 });
 
@@ -548,15 +593,17 @@ async function bootstrap() {
   loadingScreen.style.transition = 'opacity 0.5s';
   setTimeout(() => loadingScreen.remove(), 500);
 
-  // Start position update broadcast loop
+  // Start position update broadcast loop — only send when position changes
+  let lastSentLat = null;
+  let lastSentLon = null;
   setInterval(() => {
-    if (socket?.isConnected) {
-      socket.send('position_update', {
-        lat: store.get('selfLat') ?? 0,
-        lon: store.get('selfLon') ?? 0,
-        action: 'exploring',
-      });
-    }
+    if (!socket?.isConnected) return;
+    const lat = store.get('selfLat') ?? 0;
+    const lon = store.get('selfLon') ?? 0;
+    if (lat === lastSentLat && lon === lastSentLon) return;
+    lastSentLat = lat;
+    lastSentLon = lon;
+    socket.send('position_update', { lat, lon, action: 'exploring' });
   }, 100); // 10hz max
 }
 
@@ -565,15 +612,16 @@ async function bootstrap() {
 const clock = new THREE.Clock();
 let frameCount = 0;
 
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+let prefersReducedMotion = reducedMotionQuery.matches;
+reducedMotionQuery.addEventListener('change', (e) => { prefersReducedMotion = e.matches; });
+
 function animate() {
   requestAnimationFrame(animate);
 
   const delta = clock.getDelta();
   const elapsed = clock.getElapsedTime();
   frameCount++;
-
-  // Skip reduced motion
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   if (!prefersReducedMotion && store.get('sceneMode') !== 'region-land') {
     planet.update(elapsed);

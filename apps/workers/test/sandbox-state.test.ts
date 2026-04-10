@@ -94,7 +94,7 @@ describe('sandbox-state crafting interactions', () => {
     const collected = applyObjectInteraction(started.object!, 'owner-1', 'craft_collect', undefined, 7000);
     expect(collected.ok).toBe(true);
     const queue = (collected.object?.metadata?.state as { queue: Array<{ status: string }> }).queue;
-    expect(queue[0]?.status).toBe('collected');
+    expect(queue).toHaveLength(0);
   });
 });
 

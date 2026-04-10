@@ -65,6 +65,7 @@ export const store = createStore({
   // Connection
   wsConnected: false,
   wsReconnecting: false,
+  wsLatency: null,
 
   // Notifications
   activeEvents: [],

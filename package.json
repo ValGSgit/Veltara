@@ -5,6 +5,12 @@
   "description": "Veltara — full-stack social platform with shared Three.js planet",
   "scripts": {
     "dev": "concurrently -k -n web,workers,portal -c blue,green,yellow \"pnpm --filter @veltara/web dev\" \"pnpm --filter @veltara/workers dev\" \"pnpm --filter @veltara/portal dev\"",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "supabase:reset": "supabase db reset",
+    "supabase:push": "supabase db push",
+    "supabase:link": "supabase link",
     "docker:up": "docker compose up --build -d",
     "docker:up:attach": "docker compose up --build",
     "docker:down": "docker compose down",

@@ -357,7 +357,7 @@ export const PanelDrawerView = {
             <div class="flex gap-2">
               <button v-for="(pack, i) in CREDIT_PACKS" :key="pack.label" class="credit-pack flex-1 rounded-lg border border-veltara-border p-2 text-center transition-colors hover:border-veltara-accent" @click="purchaseCreditPack(i)">
                 <div class="text-xs font-semibold text-white">{{ pack.label }}</div>
-                <div class="text-[10px] text-veltara-muted">${{ (pack.price_cents / 100).toFixed(2) }}</div>
+                <div class="text-[10px] text-veltara-muted">{{ '$' + (pack.price_cents / 100).toFixed(2) }}</div>
               </button>
             </div>
           </div>

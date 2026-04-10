@@ -6,6 +6,7 @@ import { LobbyView } from './views/LobbyView.js';
 import { AuthModalView } from './components/AuthModalView.js';
 import { OnboardingModalView } from './components/OnboardingModalView.js';
 import { PanelDrawerView } from './components/PanelDrawerView.js';
+import SandboxOverlay from './components/sandbox/SandboxOverlay.vue';
 import { dispatchAppEvent } from './utils/events.js';
 import {
   formatClock,
@@ -36,6 +37,7 @@ export function mountAppShell() {
       AuthModalView,
       OnboardingModalView,
       PanelDrawerView,
+      SandboxOverlay,
     },
     setup() {
       const authModal = computed(() => shellState.authModal);
@@ -51,6 +53,7 @@ export function mountAppShell() {
       });
 
       const activeRegion = computed(() => regionById(shellState.selfRegionId));
+      const activeRegionLand = computed(() => regionById(shellState.activeRegionLandId));
 
       const players = computed(() => {
         const map = shellState.players ?? new Map();
@@ -79,6 +82,26 @@ export function mountAppShell() {
         return messages
           .filter((message) => (tab === 'global' ? message.is_global : !message.is_global))
           .slice(-50);
+      });
+
+      const sandboxObjectCount = computed(() => {
+        const objects = shellState.sandboxObjects;
+        return objects instanceof Map ? objects.size : 0;
+      });
+
+      const selectedSandboxObject = computed(() => {
+        const selectedId = shellState.selectedSandboxObjectId;
+        if (!selectedId) return null;
+        const objects = shellState.sandboxObjects;
+        if (!(objects instanceof Map)) return null;
+        return objects.get(selectedId) ?? null;
+      });
+
+      const canEditSelection = computed(() => {
+        const object = selectedSandboxObject.value;
+        const userId = shellState.user?.id;
+        if (!object || !userId) return false;
+        return object.owner_id === userId;
       });
 
       function teleport(regionId) {
@@ -128,6 +151,20 @@ export function mountAppShell() {
         store.set('showOnboarding', false);
       }
 
+      function toggleSandboxBuild() {
+        dispatchAppEvent('sandbox-build-mode', {
+          enabled: !shellState.sandboxBuildMode,
+        });
+      }
+
+      function leaveSandbox() {
+        dispatchAppEvent('leave-region-land');
+      }
+
+      function triggerSandboxAction(action) {
+        dispatchAppEvent('sandbox-ui-action', { action });
+      }
+
       return {
         shellState,
         authModal,
@@ -141,6 +178,10 @@ export function mountAppShell() {
         totalOnline,
         featuredRegion,
         chatMessages,
+        activeRegionLand,
+        sandboxObjectCount,
+        selectedSandboxObject,
+        canEditSelection,
         teleport,
         openPanel,
         closePanel,
@@ -154,6 +195,9 @@ export function mountAppShell() {
         switchAuthMode,
         handleAuthSuccess,
         closeOnboarding,
+        toggleSandboxBuild,
+        leaveSandbox,
+        triggerSandboxAction,
       };
     },
     template: `
@@ -195,6 +239,18 @@ export function mountAppShell() {
           v-if="activePanel"
           :panel="activePanel"
           @close="closePanel"
+        />
+
+        <SandboxOverlay
+          :scene-mode="shellState.sceneMode"
+          :active-region-name="activeRegionLand.name"
+          :object-count="sandboxObjectCount"
+          :selected-object="selectedSandboxObject"
+          :sandbox-build-mode="shellState.sandboxBuildMode"
+          :can-edit-selection="canEditSelection"
+          @toggle-build="toggleSandboxBuild"
+          @leave="leaveSandbox"
+          @action="triggerSandboxAction"
         />
       </div>
     `,

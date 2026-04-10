@@ -80,6 +80,10 @@ export class RegionRoom implements DurableObject {
   private worldObjects: Map<string, RegionWorldObject> = new Map();
   private regionId: RegionId | null = null;
   private worldState: Record<string, unknown> = {};
+  /** Per-user timestamps of recent object_upsert calls for rate limiting */
+  private upsertTimestamps: Map<string, number[]> = new Map();
+  /** Per-user timestamps of recent chat messages for rate limiting */
+  private chatTimestamps: Map<string, number[]> = new Map();
 
   constructor(state: DurableObjectState, env: RegionRoomEnv) {
     this.state = state;
@@ -232,17 +236,6 @@ export class RegionRoom implements DurableObject {
 
     this.send(player.ws, initMsg);
 
-    this.send(
-      player.ws,
-      makeServerMessage({
-        type: 'region_objects_snapshot',
-        payload: {
-          region_id: player.region_id,
-          objects: this.getWorldObjectsArray(),
-        },
-      }),
-    );
-
     // Broadcast player_joined to everyone else
     this.broadcast(
       makeServerMessage({
@@ -265,6 +258,8 @@ export class RegionRoom implements DurableObject {
 
   private async onDisconnect(player: StoredPlayer): Promise<void> {
     this.players.delete(player.id);
+    this.upsertTimestamps.delete(player.id);
+    this.chatTimestamps.delete(player.id);
 
     this.broadcast(
       makeServerMessage({
@@ -298,10 +293,21 @@ export class RegionRoom implements DurableObject {
       }
 
       case 'chat_message': {
-        const { text, is_global } = message.payload;
+        const { is_global } = message.payload;
+        const text = message.payload.text.trim().slice(0, RegionRoom.CHAT_MAX_LENGTH);
 
-        // Check for mute (stored in player context)
-        // In production, check KV mute status
+        if (!text) break;
+
+        if (this.isChatRateLimited(player.id, Date.now())) {
+          this.send(
+            player.ws,
+            makeServerMessage({
+              type: 'error',
+              payload: { code: 'CHAT_RATE_LIMITED', message: 'You are sending messages too fast.' },
+            }),
+          );
+          break;
+        }
 
         const entry: ChatEntry = {
           id: crypto.randomUUID(),
@@ -381,8 +387,55 @@ export class RegionRoom implements DurableObject {
     }
   }
 
+  private static readonly UPSERT_RATE_LIMIT = 10; // max upserts per window
+  private static readonly UPSERT_RATE_WINDOW_MS = 10_000; // 10-second window
+  private static readonly CHAT_RATE_LIMIT = 5; // max messages per window
+  private static readonly CHAT_RATE_WINDOW_MS = 10_000; // 10-second window
+  private static readonly CHAT_MAX_LENGTH = 500;
+  private static readonly PER_USER_OBJECT_LIMIT = 200;
+
+  private isSlidingWindowLimited(
+    store: Map<string, number[]>,
+    key: string,
+    now: number,
+    windowMs: number,
+    limit: number,
+  ): boolean {
+    const timestamps = store.get(key) ?? [];
+    const windowStart = now - windowMs;
+    const recent = timestamps.filter((t) => t > windowStart);
+    recent.push(now);
+    store.set(key, recent);
+    return recent.length > limit;
+  }
+
+  private isUpsertRateLimited(playerId: string, now: number): boolean {
+    return this.isSlidingWindowLimited(
+      this.upsertTimestamps, playerId, now,
+      RegionRoom.UPSERT_RATE_WINDOW_MS, RegionRoom.UPSERT_RATE_LIMIT,
+    );
+  }
+
+  private isChatRateLimited(playerId: string, now: number): boolean {
+    return this.isSlidingWindowLimited(
+      this.chatTimestamps, playerId, now,
+      RegionRoom.CHAT_RATE_WINDOW_MS, RegionRoom.CHAT_RATE_LIMIT,
+    );
+  }
+
   private async handleObjectUpsert(player: StoredPlayer, data: unknown): Promise<void> {
     if (!this.regionId) return;
+
+    if (this.isUpsertRateLimited(player.id, Date.now())) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: { code: 'UPSERT_RATE_LIMITED', message: 'Too many object changes. Slow down.' },
+        }),
+      );
+      return;
+    }
 
     const upsertData = data as RegionObjectUpsertData;
     if (!upsertData || !upsertData.kind || !upsertData.position) {
@@ -396,7 +449,9 @@ export class RegionRoom implements DurableObject {
       return;
     }
 
-    if (!this.worldObjects.has(upsertData.id ?? '') && this.worldObjects.size >= REGION_SANDBOX_OBJECT_LIMIT) {
+    const isNewObject = !this.worldObjects.has(upsertData.id ?? '');
+
+    if (isNewObject && this.worldObjects.size >= REGION_SANDBOX_OBJECT_LIMIT) {
       this.send(
         player.ws,
         makeServerMessage({
@@ -405,6 +460,23 @@ export class RegionRoom implements DurableObject {
         }),
       );
       return;
+    }
+
+    if (isNewObject) {
+      let userObjectCount = 0;
+      for (const obj of this.worldObjects.values()) {
+        if (obj.owner_id === player.id) userObjectCount++;
+      }
+      if (userObjectCount >= RegionRoom.PER_USER_OBJECT_LIMIT) {
+        this.send(
+          player.ws,
+          makeServerMessage({
+            type: 'error',
+            payload: { code: 'USER_OBJECT_LIMIT', message: 'You have placed too many objects in this region.' },
+          }),
+        );
+        return;
+      }
     }
 
     const existing = upsertData.id ? this.worldObjects.get(upsertData.id) : undefined;

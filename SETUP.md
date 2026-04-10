@@ -67,13 +67,36 @@ Default local URLs:
 - Portal: https://localhost:5174
 - Workers dev endpoint: https://localhost:8787
 
-## 5. Optional: Run Supabase Locally
-If you use Supabase CLI:
+## 5. Supabase Setup (Recommended)
+
+Install Supabase CLI first, then from repo root:
+
 ```bash
-supabase start
-supabase db push
+pnpm supabase:start
+pnpm supabase:reset
+pnpm supabase:status
 ```
-Then update .env values to local Supabase URLs/keys.
+
+What this gives you:
+- Local Postgres + Auth + Storage + Studio
+- All Veltara app tables from `supabase/migrations/001_initial.sql`
+
+Open Supabase Studio:
+- http://127.0.0.1:54323
+
+To inspect all tables/columns/indexes/RLS quickly:
+1. Open SQL Editor in Studio.
+2. Run `supabase/sql/inspect_schema.sql`.
+
+Then update your `.env` with local values from `pnpm supabase:status`:
+- SUPABASE_URL
+- SUPABASE_SERVICE_KEY
+
+Remote project (later):
+```bash
+pnpm supabase:link -- --project-ref <your-project-ref>
+pnpm supabase:push
+```
 
 ## 6. Validate the Workspace
 ```bash

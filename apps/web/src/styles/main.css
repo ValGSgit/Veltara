@@ -749,6 +749,185 @@ body::after {
   border-radius: 2px;
 }
 
+/* ─── Region Sandbox Overlay ──────────────────────────────────────────────── */
+
+.sandbox-overlay {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 45;
+  width: min(420px, calc(100vw - 2rem));
+  border-radius: 1.15rem;
+  padding: 1rem;
+  pointer-events: auto;
+  border: 1px solid rgba(151, 204, 255, 0.2);
+  background:
+    radial-gradient(120% 180% at 10% 0%, rgba(64, 219, 255, 0.14), transparent 45%),
+    radial-gradient(100% 140% at 100% 0%, rgba(84, 132, 255, 0.12), transparent 48%),
+    linear-gradient(165deg, rgba(8, 15, 29, 0.9), rgba(5, 8, 19, 0.84));
+}
+
+.sandbox-overlay__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sandbox-overlay__eyebrow {
+  margin: 0;
+  font-size: 0.66rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: #8ca4c7;
+}
+
+.sandbox-overlay h3 {
+  margin: 0.35rem 0 0;
+  font-size: 1.15rem;
+  color: #eef5ff;
+}
+
+.sandbox-overlay__stats {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.sandbox-stat-card {
+  border-radius: 0.85rem;
+  border: 1px solid rgba(158, 194, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.55rem 0.7rem;
+}
+
+.sandbox-stat-card span {
+  display: block;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8fa7cb;
+}
+
+.sandbox-stat-card strong {
+  display: block;
+  margin-top: 0.22rem;
+  font-size: 0.92rem;
+  color: #f3f8ff;
+}
+
+.sandbox-stat-card .is-online {
+  color: #6cffce;
+}
+
+.sandbox-stat-card .is-offline {
+  color: #ffb57c;
+}
+
+.sandbox-overlay__selection {
+  margin-top: 0.8rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(158, 194, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.7rem;
+}
+
+.sandbox-selection__title {
+  margin: 0.35rem 0 0;
+  color: #e9f4ff;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.sandbox-selection__meta {
+  margin: 0.32rem 0 0;
+  color: #8ca4c7;
+  font-size: 0.72rem;
+}
+
+.sandbox-overlay__actions {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.sandbox-action-btn {
+  border-radius: 0.8rem;
+  border: 1px solid rgba(165, 211, 255, 0.2);
+  padding: 0.52rem 0.72rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: #eaf4ff;
+  font-weight: 600;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.sandbox-action-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(95, 210, 255, 0.55);
+}
+
+.sandbox-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.sandbox-action-btn--primary {
+  background: linear-gradient(135deg, rgba(55, 203, 255, 0.28), rgba(84, 111, 255, 0.25));
+}
+
+.sandbox-action-btn--ghost {
+  background: transparent;
+}
+
+.sandbox-action-btn--danger {
+  border-color: rgba(255, 115, 115, 0.3);
+  color: #ffc0c0;
+}
+
+.sandbox-overlay__hotkeys {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.sandbox-hotkey-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(164, 204, 255, 0.18);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 0.26rem 0.54rem;
+  color: #d9ebff;
+  font-size: 0.68rem;
+}
+
+.sandbox-hotkey-pill kbd {
+  border-radius: 0.38rem;
+  border: 1px solid rgba(167, 214, 255, 0.28);
+  background: rgba(13, 20, 35, 0.8);
+  padding: 0.08rem 0.35rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.64rem;
+  color: #95d6ff;
+}
+
+.sandbox-slide-enter-active,
+.sandbox-slide-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.sandbox-slide-enter-from,
+.sandbox-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+}
+
 /* ─── Reduce Motion ─────────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
