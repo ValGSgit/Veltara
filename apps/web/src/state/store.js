@@ -52,6 +52,7 @@ export const store = createStore({
   selectedSandboxObjectId: null,
   sceneMode: 'planet', // 'planet' | 'region-land'
   activeRegionLandId: null,
+  currentPage: 'home', // 'home' | 'planet'
 
   // Chat
   chatMessages: [],

@@ -2,7 +2,9 @@ import { createApp, computed, reactive } from 'vue';
 import { REGIONS } from '@veltara/shared';
 import { store } from '../state/store.js';
 import { handleAuthSuccess as resolveAuthSuccess } from '../ui/auth.js';
+import AppNavBar from './components/AppNavBar.vue';
 import { LobbyView } from './views/LobbyView.js';
+import { HomeView } from './views/HomeView.js';
 import { AuthModalView } from './components/AuthModalView.js';
 import { OnboardingModalView } from './components/OnboardingModalView.js';
 import { PanelDrawerView } from './components/PanelDrawerView.js';
@@ -34,12 +36,15 @@ export function mountAppShell() {
     name: 'AppShell',
     components: {
       LobbyView,
+      HomeView,
+      AppNavBar,
       AuthModalView,
       OnboardingModalView,
       PanelDrawerView,
       SandboxOverlay,
     },
     setup() {
+      const currentPage = computed(() => shellState.currentPage ?? 'home');
       const authModal = computed(() => shellState.authModal);
       const onboardingVisible = computed(() => Boolean(shellState.showOnboarding));
       const activePanel = computed(() => shellState.activePanel);
@@ -108,6 +113,10 @@ export function mountAppShell() {
         dispatchAppEvent('teleport-to-region', { regionId });
       }
 
+      function navigate(page) {
+        store.set('currentPage', page);
+      }
+
       function openPanel(panel) {
         store.set('activePanel', panel);
       }
@@ -139,6 +148,10 @@ export function mountAppShell() {
         store.set('authModal', null);
       }
 
+      function openAuth(mode = 'login') {
+        store.set('authModal', mode);
+      }
+
       function switchAuthMode(mode) {
         store.set('authModal', mode);
       }
@@ -165,8 +178,13 @@ export function mountAppShell() {
         dispatchAppEvent('sandbox-ui-action', { action });
       }
 
+      function goPlanet() {
+        store.set('currentPage', 'planet');
+      }
+
       return {
         shellState,
+        currentPage,
         authModal,
         onboardingVisible,
         activePanel,
@@ -182,6 +200,7 @@ export function mountAppShell() {
         sandboxObjectCount,
         selectedSandboxObject,
         canEditSelection,
+        navigate,
         teleport,
         openPanel,
         closePanel,
@@ -191,6 +210,7 @@ export function mountAppShell() {
         playerName,
         playerAction,
         playerRegion,
+        openAuth,
         closeAuth,
         switchAuthMode,
         handleAuthSuccess,
@@ -198,11 +218,35 @@ export function mountAppShell() {
         toggleSandboxBuild,
         leaveSandbox,
         triggerSandboxAction,
+        goPlanet,
       };
     },
     template: `
       <div>
+        <AppNavBar
+          :current-page="currentPage"
+          :is-authenticated="shellState.isAuthenticated"
+          :username="shellState.user?.username || ''"
+          :ws-connected="shellState.wsConnected"
+          @navigate="navigate"
+          @open-panel="openPanel"
+          @auth="openAuth"
+        />
+
+        <HomeView
+          v-if="currentPage === 'home'"
+          :active-region="activeRegion"
+          :featured-region="featuredRegion"
+          :total-online="totalOnline"
+          :clock="clock"
+          :active-events="activeEvents"
+          :quick-region="quickRegion"
+          :open-panel="openPanel"
+          :go-planet="goPlanet"
+        />
+
         <LobbyView
+          v-else
           :shell-state="shellState"
           :regions="regions"
           :active-region="activeRegion"

@@ -167,6 +167,7 @@ function setSceneMode(nextMode, regionId = null) {
 }
 
 function enterRegionLand(regionId) {
+  store.set('currentPage', 'planet');
   setSceneMode('region-land', regionId);
 
   toast.info('Entered region land sandbox. Press Esc to return to planet.', 3500);
