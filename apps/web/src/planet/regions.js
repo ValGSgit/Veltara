@@ -12,6 +12,7 @@ export class RegionMarkers {
   scene;
   /** @type {Map<string, THREE.Group>} */
   markers = new Map();
+  markerEntries = [];
   /** @type {THREE.Raycaster} */
   raycaster = new THREE.Raycaster();
   /** @type {THREE.Raycaster} */
@@ -52,22 +53,49 @@ export class RegionMarkers {
       const color = new THREE.Color(region.color);
 
       // Outer glow ring
-      const glowGeo = new THREE.RingGeometry(0.045, 0.095, 32);
+      const glowGeo = new THREE.RingGeometry(0.05, 0.115, 44);
       const glowMat = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.3,
+        opacity: 0.28,
         side: THREE.DoubleSide,
         depthWrite: false,
+        blending: THREE.AdditiveBlending,
       });
       const glowMesh = new THREE.Mesh(glowGeo, glowMat);
       group.add(glowMesh);
 
+      // Secondary aura ring for better visibility at distance
+      const auraGeo = new THREE.RingGeometry(0.12, 0.2, 44);
+      const auraMat = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      const auraMesh = new THREE.Mesh(auraGeo, auraMat);
+      group.add(auraMesh);
+
       // Inner solid dot
-      const dotGeo = new THREE.CircleGeometry(0.05, 24);
+      const dotGeo = new THREE.CircleGeometry(0.042, 32);
       const dotMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
       const dotMesh = new THREE.Mesh(dotGeo, dotMat);
       group.add(dotMesh);
+
+      // Core sparkle
+      const coreGeo = new THREE.CircleGeometry(0.018, 24);
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+      coreMesh.position.z = 0.0015;
+      group.add(coreMesh);
 
       // Spike pointing outward
       const spikeGeo = new THREE.ConeGeometry(0.012, 0.16, 8);
@@ -77,8 +105,18 @@ export class RegionMarkers {
       spikeMesh.position.z = -0.11;
       group.add(spikeMesh);
 
-      group.userData = { regionId: region.id, regionName: region.name, color };
+      const pulseOffset = Math.random() * Math.PI * 2;
+
+      group.userData = { regionId: region.id, regionName: region.name, color, pulseOffset };
       this.markers.set(region.id, group);
+      this.markerEntries.push({
+        regionId: region.id,
+        group,
+        glowMesh,
+        auraMesh,
+        dotMesh,
+        coreMesh,
+      });
       this.scene.add(group);
     });
   }
@@ -102,18 +140,26 @@ export class RegionMarkers {
    * @param {number} elapsed
    */
   update(playerCounts, elapsed) {
-    this.markers.forEach((group, regionId) => {
+    this.markerEntries.forEach(({ regionId, group, glowMesh, auraMesh, dotMesh, coreMesh }) => {
       const count = playerCounts[regionId] ?? 0;
-      const baseScale = 1.0 + Math.min(count / 50, 1.0);
-      const pulse = Math.sin(elapsed * 2.5 + REGIONS.findIndex((r) => r.id === regionId) * 0.8) * 0.1 + 1;
+      const baseScale = 1.0 + Math.min(count / 90, 0.6);
+      const pulse = Math.sin(elapsed * 2.4 + (group.userData.pulseOffset ?? 0)) * 0.12 + 1;
       const scale = baseScale * pulse;
       group.scale.setScalar(scale);
 
-      // Update glow opacity
-      /** @type {THREE.Mesh} */
-      const glowMesh = group.children[0];
+      // Update glow opacity and aura response to activity
       if (glowMesh.material instanceof THREE.MeshBasicMaterial) {
-        glowMesh.material.opacity = 0.2 + (count / 100) * 0.5 + Math.sin(elapsed * 2.0) * 0.1;
+        glowMesh.material.opacity = 0.2 + Math.min(0.35, count * 0.01) + (Math.sin(elapsed * 2.0) * 0.06);
+      }
+      if (auraMesh.material instanceof THREE.MeshBasicMaterial) {
+        auraMesh.material.opacity = 0.08 + Math.min(0.24, count * 0.006) + (Math.cos(elapsed * 1.4) * 0.04);
+      }
+      if (dotMesh.material instanceof THREE.MeshBasicMaterial) {
+        const intensity = 0.78 + Math.sin(elapsed * 3.1 + (group.userData.pulseOffset ?? 0)) * 0.12;
+        dotMesh.material.color.copy(group.userData.color).multiplyScalar(intensity);
+      }
+      if (coreMesh.material instanceof THREE.MeshBasicMaterial) {
+        coreMesh.material.opacity = 0.55 + Math.sin(elapsed * 4.6 + (group.userData.pulseOffset ?? 0)) * 0.2;
       }
     });
   }

@@ -38,6 +38,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.28;
+renderer.physicallyCorrectLights = true;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000004);
@@ -56,10 +58,16 @@ function getQuality() {
 
 let quality = getQuality();
 const planet = new Planet(scene, quality);
-const earthPlanet = new PlanetModel(scene, '/models/earth-00.glb');
+const earthPlanet = new PlanetModel(scene, '/models/earth-00.glb', {
+  appearance: 'earth',
+  spinSpeed: 0.0028,
+  scaleMultiplier: 1.02,
+});
 const blackHolePlanet = new PlanetModel(scene, '/models/black_hole/source/black%20hole.fbx', {
   format: 'fbx',
+  appearance: 'black-hole',
   spinSpeed: 0.0045,
+  scaleMultiplier: 1.08,
 });
 const regions = new RegionMarkers(scene);
 const players = new PlayerDots(scene);
