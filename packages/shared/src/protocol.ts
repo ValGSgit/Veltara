@@ -15,6 +15,33 @@ const BaseMessage = z.object({
   timestamp: z.number().int().positive(),
 });
 
+export const RegionWorldObjectSchema = z.object({
+  id: z.string(),
+  region_id: z.string(),
+  owner_id: z.string(),
+  kind: z.enum(['block', 'platform', 'beacon', 'orb']),
+  material: z.enum(['stone', 'metal', 'wood', 'glass', 'neon']),
+  position: z.object({
+    x: z.number().min(-200).max(200),
+    y: z.number().min(-100).max(100),
+    z: z.number().min(-200).max(200),
+  }),
+  rotation: z.object({
+    x: z.number().min(-Math.PI * 2).max(Math.PI * 2),
+    y: z.number().min(-Math.PI * 2).max(Math.PI * 2),
+    z: z.number().min(-Math.PI * 2).max(Math.PI * 2),
+  }),
+  scale: z.object({
+    x: z.number().min(0.2).max(20),
+    y: z.number().min(0.2).max(20),
+    z: z.number().min(0.2).max(20),
+  }),
+  interactive: z.boolean(),
+  metadata: z.record(z.unknown()).optional(),
+  created_at: z.number(),
+  updated_at: z.number(),
+});
+
 // ─── Server → Client Message Schemas ─────────────────────────────────────────
 
 export const WorldStateMessageSchema = z.object({
@@ -111,6 +138,35 @@ export const RegionEventMessageSchema = z.object({
   timestamp: z.number(),
 });
 
+export const RegionObjectsSnapshotMessageSchema = z.object({
+  type: z.literal('region_objects_snapshot'),
+  payload: z.object({
+    region_id: z.string(),
+    objects: z.array(RegionWorldObjectSchema),
+  }),
+  timestamp: z.number(),
+});
+
+export const RegionObjectUpsertMessageSchema = z.object({
+  type: z.literal('region_object_upsert'),
+  payload: z.object({
+    region_id: z.string(),
+    object: RegionWorldObjectSchema,
+    actor_id: z.string(),
+  }),
+  timestamp: z.number(),
+});
+
+export const RegionObjectRemoveMessageSchema = z.object({
+  type: z.literal('region_object_remove'),
+  payload: z.object({
+    region_id: z.string(),
+    object_id: z.string(),
+    actor_id: z.string(),
+  }),
+  timestamp: z.number(),
+});
+
 export const GlobalEventMessageSchema = z.object({
   type: z.literal('global_event'),
   payload: z.object({
@@ -148,6 +204,7 @@ export const InitialStateMessageSchema = z.object({
     players: z.array(PlayerJoinedMessageSchema.shape.payload),
     chat_history: z.array(ChatMessageServerSchema.shape.payload),
     world_state: WorldStateMessageSchema.shape.payload,
+    region_objects: z.array(RegionWorldObjectSchema),
   }),
   timestamp: z.number(),
 });
@@ -175,10 +232,35 @@ export const ChatMessageClientSchema = z.object({
 
 export const RegionActionClientSchema = z.object({
   type: z.literal('region_action'),
-  payload: z.object({
-    type: z.string().max(64),
-    data: z.record(z.unknown()),
-  }),
+  payload: z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal('object_upsert'),
+      data: RegionWorldObjectSchema.partial().extend({
+        id: z.string().optional(),
+        kind: z.enum(['block', 'platform', 'beacon', 'orb']),
+        material: z.enum(['stone', 'metal', 'wood', 'glass', 'neon']).default('stone'),
+        position: RegionWorldObjectSchema.shape.position,
+        rotation: RegionWorldObjectSchema.shape.rotation.optional(),
+        scale: RegionWorldObjectSchema.shape.scale.optional(),
+        interactive: z.boolean().optional(),
+        metadata: z.record(z.unknown()).optional(),
+      }),
+    }),
+    z.object({
+      type: z.literal('object_remove'),
+      data: z.object({
+        object_id: z.string(),
+      }),
+    }),
+    z.object({
+      type: z.literal('object_interact'),
+      data: z.object({
+        object_id: z.string(),
+        interaction_type: z.string().min(1).max(64),
+        payload: z.record(z.unknown()).optional(),
+      }),
+    }),
+  ]),
   timestamp: z.number(),
 });
 
@@ -197,6 +279,9 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
   PositionUpdateServerSchema,
   ChatMessageServerSchema,
   RegionEventMessageSchema,
+  RegionObjectsSnapshotMessageSchema,
+  RegionObjectUpsertMessageSchema,
+  RegionObjectRemoveMessageSchema,
   GlobalEventMessageSchema,
   ErrorMessageSchema,
   PongMessageSchema,
@@ -218,6 +303,9 @@ export type PlayerLeftMessage = z.infer<typeof PlayerLeftMessageSchema>;
 export type PositionUpdateServerMessage = z.infer<typeof PositionUpdateServerSchema>;
 export type ChatMessageServer = z.infer<typeof ChatMessageServerSchema>;
 export type RegionEventMessage = z.infer<typeof RegionEventMessageSchema>;
+export type RegionObjectsSnapshotMessage = z.infer<typeof RegionObjectsSnapshotMessageSchema>;
+export type RegionObjectUpsertMessage = z.infer<typeof RegionObjectUpsertMessageSchema>;
+export type RegionObjectRemoveMessage = z.infer<typeof RegionObjectRemoveMessageSchema>;
 export type GlobalEventMessage = z.infer<typeof GlobalEventMessageSchema>;
 export type ErrorMessage = z.infer<typeof ErrorMessageSchema>;
 export type PongMessage = z.infer<typeof PongMessageSchema>;
@@ -230,6 +318,7 @@ export type PingMessage = z.infer<typeof PingMessageSchema>;
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
+export type RegionWorldObjectProtocol = z.infer<typeof RegionWorldObjectSchema>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

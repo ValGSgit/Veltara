@@ -130,6 +130,7 @@ export const RATE_LIMITS = {
 export const NPC_DAILY_LIMIT_PRO = 20;
 export const CHAT_HISTORY_LIMIT = 200;
 export const POSITION_UPDATE_HZ = 10;
+export const REGION_SANDBOX_OBJECT_LIMIT = 2000;
 
 // ─── Credit Pack Prices ───────────────────────────────────────────────────────
 

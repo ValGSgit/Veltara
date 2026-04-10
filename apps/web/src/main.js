@@ -10,16 +10,18 @@ import * as THREE from 'three';
 import { Planet } from './planet/planet.js';
 import { RegionMarkers } from './planet/regions.js';
 import { PlayerDots } from './planet/players.js';
+import { RegionSandboxLayer } from './planet/sandbox.js';
+import { RegionLandScene } from './planet/region-land.js';
 import { CameraController } from './planet/camera.js';
 import { Minimap } from './planet/minimap.js';
-import { initHUD } from './ui/hud.js';
-import { showLoginModal, showRegisterModal } from './ui/auth.js';
-import { showOnboarding } from './ui/onboarding.js';
+import { showLoginModal } from './ui/auth.js';
+import { showOnboarding } from './ui/onboarding-flow.js';
 import { toast } from './ui/toast.js';
 import { store } from './state/store.js';
 import { api } from './network/api.js';
 import { RegionSocket } from './network/websocket.js';
 import './ui/panels.js';
+import { mountLobbyShell } from './ui/lobby-shell.js';
 import { REGIONS } from '@veltara/shared';
 
 // ─── Renderer Setup ───────────────────────────────────────────────────────────
@@ -55,20 +57,58 @@ let quality = getQuality();
 const planet = new Planet(scene, quality);
 const regions = new RegionMarkers(scene);
 const players = new PlayerDots(scene);
+const sandbox = new RegionSandboxLayer(scene, planet.mesh);
+const regionLand = new RegionLandScene(scene);
 const cameraCtrl = new CameraController(camera, canvas);
 const minimap = new Minimap();
 
-// ─── HUD ──────────────────────────────────────────────────────────────────────
+function enterRegionLand(regionId) {
+  store.set('sceneMode', 'region-land');
+  store.set('activeRegionLandId', regionId);
 
-initHUD();
+  planet.mesh.visible = false;
+  planet.atmosphere.visible = false;
+  planet.clouds.visible = false;
+  regions.markers.forEach((group) => { group.visible = false; });
+  players.instancedMesh.visible = false;
+  minimap.canvas.style.display = 'none';
+
+  regionLand.enter(regionId);
+  regionLand.focusCamera(cameraCtrl);
+  sandbox.setPlacementSurface(regionLand.getPlacementSurface());
+
+  toast.info('Entered region land sandbox. Press Esc to return to planet.', 3500);
+}
+
+function leaveRegionLand() {
+  store.set('sceneMode', 'planet');
+  store.set('activeRegionLandId', null);
+
+  planet.mesh.visible = true;
+  planet.atmosphere.visible = true;
+  planet.clouds.visible = true;
+  regions.markers.forEach((group) => { group.visible = true; });
+  players.instancedMesh.visible = true;
+  minimap.canvas.style.display = 'block';
+
+  regionLand.leave();
+  sandbox.setPlacementSurface(planet.mesh);
+}
+
+// ─── HUD / Shell ─────────────────────────────────────────────────────────────
+
+mountLobbyShell();
 
 // Show loading overlay
 const loadingScreen = document.createElement('div');
 loadingScreen.id = 'loading-screen';
-loadingScreen.innerHTML = `
-  <div class="loading-ring"></div>
-  <div class="text-white text-sm font-medium">Loading Veltara…</div>
-`;
+const loadingRing = document.createElement('div');
+loadingRing.className = 'loading-ring';
+const loadingText = document.createElement('div');
+loadingText.className = 'text-white text-sm font-medium';
+loadingText.textContent = 'Loading Veltara…';
+loadingScreen.appendChild(loadingRing);
+loadingScreen.appendChild(loadingText);
 document.body.appendChild(loadingScreen);
 
 // ─── WebSocket State ──────────────────────────────────────────────────────────
@@ -111,6 +151,34 @@ function connectToRegion(regionId, token) {
 
     // Load world state
     store.set('worldState', payload.world_state);
+
+    // Load region sandbox objects
+    const incoming = payload.region_objects ?? [];
+    sandbox.applySnapshot(incoming);
+    store.set('sandboxObjects', new Map(incoming.map((obj) => [obj.id, obj])));
+  });
+
+  socket.on('region_objects_snapshot', (payload) => {
+    const incoming = payload.objects ?? [];
+    sandbox.applySnapshot(incoming);
+    store.set('sandboxObjects', new Map(incoming.map((obj) => [obj.id, obj])));
+  });
+
+  socket.on('region_object_upsert', (payload) => {
+    sandbox.upsert(payload.object);
+    const map = new Map(store.get('sandboxObjects') ?? new Map());
+    map.set(payload.object.id, payload.object);
+    store.set('sandboxObjects', map);
+  });
+
+  socket.on('region_object_remove', (payload) => {
+    sandbox.remove(payload.object_id);
+    const map = new Map(store.get('sandboxObjects') ?? new Map());
+    map.delete(payload.object_id);
+    store.set('sandboxObjects', map);
+    if (store.get('selectedSandboxObjectId') === payload.object_id) {
+      store.set('selectedSandboxObjectId', null);
+    }
   });
 
   socket.on('world_state', (payload) => {
@@ -161,6 +229,14 @@ function connectToRegion(regionId, token) {
     }
   });
 
+  socket.on('region_event', (payload) => {
+    if (payload.event_type !== 'object_interact') return;
+    const objectId = payload?.data?.object_id;
+    if (typeof objectId === 'string') {
+      sandbox.pulse(objectId);
+    }
+  });
+
   socket.on('pong', ({ latency }) => {
     // Could display latency in HUD
   });
@@ -193,21 +269,210 @@ document.addEventListener('teleport-to-region', (e) => {
   }
 });
 
+document.addEventListener('sandbox-build-mode', (e) => {
+  const enabled = Boolean(e.detail?.enabled);
+  store.set('sandboxBuildMode', enabled);
+  toast.info(enabled ? 'Sandbox build mode enabled (Shift + Click to place).' : 'Sandbox build mode disabled.', 2500);
+});
+
+document.addEventListener('enter-region-land', (e) => {
+  const { regionId } = e.detail ?? {};
+  if (!regionId) return;
+  enterRegionLand(regionId);
+});
+
+document.addEventListener('leave-region-land', () => {
+  leaveRegionLand();
+});
+
 // ─── Planet double-click → focus region ──────────────────────────────────────
 
 canvas.addEventListener('dblclick', (e) => {
+  if (store.get('sceneMode') === 'region-land') return;
+
   const mouse = CameraController.getNDC(e, canvas);
   const regionId = regions.checkClick(mouse, camera);
   if (regionId) {
     document.dispatchEvent(new CustomEvent('teleport-to-region', { detail: { regionId } }));
+    setTimeout(() => {
+      document.dispatchEvent(new CustomEvent('enter-region-land', { detail: { regionId } }));
+    }, 450);
   }
 });
 
 // ─── Mouse hover for region labels ───────────────────────────────────────────
 
 canvas.addEventListener('mousemove', (e) => {
+  if (store.get('sceneMode') === 'region-land') return;
+
   const mouse = CameraController.getNDC(e, canvas);
   regions.checkHover(mouse, camera, e);
+});
+
+canvas.addEventListener('click', (e) => {
+  const mouse = CameraController.getNDC(e, canvas);
+  const selectedObject = sandbox.pickObject(mouse, camera);
+
+  if (selectedObject) {
+    sandbox.setSelected(selectedObject.id);
+    store.set('selectedSandboxObjectId', selectedObject.id);
+
+    if (socket?.isConnected) {
+      socket.send('region_action', {
+        type: 'object_interact',
+        data: {
+          object_id: selectedObject.id,
+          interaction_type: 'use',
+          payload: {
+            scene_mode: store.get('sceneMode'),
+          },
+        },
+      });
+    }
+    return;
+  }
+
+  if (!store.get('sandboxBuildMode')) return;
+  if (!e.shiftKey) return;
+
+  const placementData = sandbox.makePlacementData(
+    mouse,
+    camera,
+    store.get('user')?.id,
+    store.get('selfRegionId'),
+  );
+  if (!placementData) return;
+
+  if (!socket?.isConnected) {
+    toast.error('Connect to a region before building.');
+    return;
+  }
+
+  socket.send('region_action', {
+    type: 'object_upsert',
+    data: placementData,
+  });
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && store.get('sceneMode') === 'region-land') {
+    leaveRegionLand();
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'b') {
+    const next = !store.get('sandboxBuildMode');
+    store.set('sandboxBuildMode', next);
+    toast.info(next ? 'Sandbox build mode enabled (Shift + Click to place).' : 'Sandbox build mode disabled.', 2500);
+    return;
+  }
+
+  const selectedId = store.get('selectedSandboxObjectId');
+  if (!selectedId || !socket?.isConnected) return;
+
+  const selected = sandbox.getObjectById(selectedId);
+  if (!selected) return;
+
+  const userId = store.get('user')?.id;
+  const isOwner = selected.owner_id === userId;
+  if (!isOwner) return;
+
+  if (e.key === 'Delete') {
+    socket.send('region_action', {
+      type: 'object_remove',
+      data: { object_id: selectedId },
+    });
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'r') {
+    socket.send('region_action', {
+      type: 'object_upsert',
+      data: {
+        id: selected.id,
+        kind: selected.kind,
+        material: selected.material,
+        position: selected.position,
+        rotation: {
+          x: selected.rotation.x,
+          y: Number((selected.rotation.y + 0.25).toFixed(3)),
+          z: selected.rotation.z,
+        },
+        scale: selected.scale,
+        interactive: selected.interactive,
+        metadata: selected.metadata,
+      },
+    });
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'l') {
+    socket.send('region_action', {
+      type: 'object_interact',
+      data: {
+        object_id: selected.id,
+        interaction_type: 'door_lock',
+      },
+    });
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'u') {
+    socket.send('region_action', {
+      type: 'object_interact',
+      data: {
+        object_id: selected.id,
+        interaction_type: 'door_unlock',
+      },
+    });
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'p') {
+    socket.send('region_action', {
+      type: 'object_interact',
+      data: {
+        object_id: selected.id,
+        interaction_type: 'storage_put',
+        payload: { item_id: 'ore', count: 1 },
+      },
+    });
+    return;
+  }
+
+  if (e.key.toLowerCase() === 't') {
+    socket.send('region_action', {
+      type: 'object_interact',
+      data: {
+        object_id: selected.id,
+        interaction_type: 'storage_take',
+        payload: { item_id: 'ore', count: 1 },
+      },
+    });
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'c') {
+    socket.send('region_action', {
+      type: 'object_interact',
+      data: {
+        object_id: selected.id,
+        interaction_type: 'craft_start',
+        payload: { recipe: 'iron_ingot', duration_ms: 15000 },
+      },
+    });
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'g') {
+    socket.send('region_action', {
+      type: 'object_interact',
+      data: {
+        object_id: selected.id,
+        interaction_type: 'craft_collect',
+      },
+    });
+  }
 });
 
 // ─── Quality change ───────────────────────────────────────────────────────────
@@ -310,18 +575,26 @@ function animate() {
   // Skip reduced motion
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (!prefersReducedMotion) {
+  if (!prefersReducedMotion && store.get('sceneMode') !== 'region-land') {
     planet.update(elapsed);
+  }
+
+  if (store.get('sceneMode') === 'region-land') {
+    regionLand.update(elapsed);
   }
 
   cameraCtrl.update(delta);
   planet.updateLOD(cameraCtrl.distance);
 
   const counts = store.get('regionCounts') ?? {};
-  regions.update(counts, elapsed);
+  if (store.get('sceneMode') !== 'region-land') {
+    regions.update(counts, elapsed);
+  }
 
   players.update(delta, elapsed);
-  minimap.update(elapsed);
+  if (store.get('sceneMode') !== 'region-land') {
+    minimap.update(elapsed);
+  }
 
   // Update minimap player data
   const allPlayers = store.get('players') ?? new Map();

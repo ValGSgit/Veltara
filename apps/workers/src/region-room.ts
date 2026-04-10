@@ -12,15 +12,25 @@
 import {
   REGIONS,
   CHAT_HISTORY_LIMIT,
+  REGION_SANDBOX_OBJECT_LIMIT,
   REGION_MAP,
   parseClientMessage,
   makeServerMessage,
+  RegionWorldObjectSchema,
   type Player,
-  type ChatMessageServer,
   type RegionId,
+  type RegionWorldObject,
+  type RegionObjectKind,
+  type RegionObjectMaterial,
   type ServerMessage,
 } from '@veltara/shared';
 import { verifyJwt } from './utils/jwt.js';
+import {
+  applyObjectInteraction,
+  canEditOrRemoveObject,
+  initializeObjectState,
+  normalizeObjectSnapshot,
+} from './sandbox-state.js';
 
 interface RegionRoomEnv {
   JWT_SECRET: string;
@@ -45,11 +55,29 @@ interface ChatEntry {
   created_at: number;
 }
 
+interface RegionObjectTransform {
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface RegionObjectUpsertData {
+  id?: string;
+  kind: RegionObjectKind;
+  material?: RegionObjectMaterial;
+  position: RegionObjectTransform;
+  rotation?: RegionObjectTransform;
+  scale?: RegionObjectTransform;
+  interactive?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
 export class RegionRoom implements DurableObject {
   private state: DurableObjectState;
   private env: RegionRoomEnv;
   private players: Map<string, StoredPlayer> = new Map();
   private chatHistory: ChatEntry[] = [];
+  private worldObjects: Map<string, RegionWorldObject> = new Map();
   private regionId: RegionId | null = null;
   private worldState: Record<string, unknown> = {};
 
@@ -61,6 +89,8 @@ export class RegionRoom implements DurableObject {
     this.state.blockConcurrencyWhile(async () => {
       this.chatHistory = (await this.state.storage.get<ChatEntry[]>('chat_history')) ?? [];
       this.regionId = (await this.state.storage.get<RegionId>('region_id')) ?? null;
+      const storedObjects = (await this.state.storage.get<RegionWorldObject[]>('region_objects')) ?? [];
+      this.worldObjects = new Map(storedObjects.map((obj) => [obj.id, initializeObjectState(obj)]));
     });
   }
 
@@ -185,6 +215,7 @@ export class RegionRoom implements DurableObject {
         players: Player[];
         chat_history: ChatEntry[];
         world_state: Record<string, unknown>;
+        region_objects: RegionWorldObject[];
       };
       timestamp: number;
     }>({
@@ -195,10 +226,22 @@ export class RegionRoom implements DurableObject {
         players: this.getPlayersArray(),
         chat_history: this.chatHistory.slice(-50),
         world_state: worldState,
+        region_objects: this.getWorldObjectsArray(),
       },
     });
 
     this.send(player.ws, initMsg);
+
+    this.send(
+      player.ws,
+      makeServerMessage({
+        type: 'region_objects_snapshot',
+        payload: {
+          region_id: player.region_id,
+          objects: this.getWorldObjectsArray(),
+        },
+      }),
+    );
 
     // Broadcast player_joined to everyone else
     this.broadcast(
@@ -296,6 +339,21 @@ export class RegionRoom implements DurableObject {
       case 'region_action': {
         const { type: actionType, data } = message.payload;
 
+        if (actionType === 'object_upsert') {
+          await this.handleObjectUpsert(player, data);
+          break;
+        }
+
+        if (actionType === 'object_remove') {
+          await this.handleObjectRemove(player, data);
+          break;
+        }
+
+        if (actionType === 'object_interact') {
+          await this.handleObjectInteract(player, data);
+          break;
+        }
+
         this.broadcast(
           makeServerMessage({
             type: 'region_event',
@@ -321,6 +379,209 @@ export class RegionRoom implements DurableObject {
         break;
       }
     }
+  }
+
+  private async handleObjectUpsert(player: StoredPlayer, data: unknown): Promise<void> {
+    if (!this.regionId) return;
+
+    const upsertData = data as RegionObjectUpsertData;
+    if (!upsertData || !upsertData.kind || !upsertData.position) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: { code: 'INVALID_OBJECT_DATA', message: 'Object payload is invalid.' },
+        }),
+      );
+      return;
+    }
+
+    if (!this.worldObjects.has(upsertData.id ?? '') && this.worldObjects.size >= REGION_SANDBOX_OBJECT_LIMIT) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: { code: 'REGION_OBJECT_LIMIT', message: 'Region object limit reached.' },
+        }),
+      );
+      return;
+    }
+
+    const existing = upsertData.id ? this.worldObjects.get(upsertData.id) : undefined;
+    if (existing && !canEditOrRemoveObject(existing, player.id)) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: { code: 'OBJECT_PERMISSION_DENIED', message: 'Only the owner can edit this object.' },
+        }),
+      );
+      return;
+    }
+
+    const now = Date.now();
+    const object: RegionWorldObject = initializeObjectState({
+      id: existing?.id ?? upsertData.id ?? crypto.randomUUID(),
+      region_id: this.regionId,
+      owner_id: existing?.owner_id ?? player.id,
+      kind: upsertData.kind,
+      material: upsertData.material ?? existing?.material ?? 'stone',
+      position: this.clampTransform(upsertData.position, existing?.position),
+      rotation: this.clampRotation(upsertData.rotation ?? existing?.rotation),
+      scale: this.clampScale(upsertData.scale ?? existing?.scale),
+      interactive: upsertData.interactive ?? existing?.interactive ?? true,
+      metadata: upsertData.metadata ?? existing?.metadata,
+      created_at: existing?.created_at ?? now,
+      updated_at: now,
+    });
+
+    const validated = RegionWorldObjectSchema.safeParse(object);
+    if (!validated.success) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: { code: 'INVALID_OBJECT_SCHEMA', message: 'Object schema validation failed.' },
+        }),
+      );
+      return;
+    }
+
+    this.worldObjects.set(object.id, validated.data as RegionWorldObject);
+    await this.persistWorldObjects();
+
+    this.broadcast(
+      makeServerMessage({
+        type: 'region_object_upsert',
+        payload: {
+          region_id: this.regionId,
+          object,
+          actor_id: player.id,
+        },
+      }),
+    );
+  }
+
+  private async handleObjectRemove(player: StoredPlayer, data: unknown): Promise<void> {
+    if (!this.regionId) return;
+
+    const objectId = (data as { object_id?: string })?.object_id;
+    if (!objectId) return;
+
+    const existing = this.worldObjects.get(objectId);
+    if (!existing) return;
+
+    if (!canEditOrRemoveObject(existing, player.id)) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: { code: 'OBJECT_PERMISSION_DENIED', message: 'Only the owner can remove this object.' },
+        }),
+      );
+      return;
+    }
+
+    this.worldObjects.delete(objectId);
+    await this.persistWorldObjects();
+
+    this.broadcast(
+      makeServerMessage({
+        type: 'region_object_remove',
+        payload: {
+          region_id: this.regionId,
+          object_id: objectId,
+          actor_id: player.id,
+        },
+      }),
+    );
+  }
+
+  private async handleObjectInteract(player: StoredPlayer, data: unknown): Promise<void> {
+    if (!this.regionId) return;
+
+    const objectId = (data as { object_id?: string })?.object_id;
+    const interactionType = (data as { interaction_type?: string })?.interaction_type;
+    const interactionPayload = (data as { payload?: Record<string, unknown> })?.payload;
+
+    if (!objectId || !interactionType) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: { code: 'INVALID_INTERACTION', message: 'Missing object_id or interaction_type.' },
+        }),
+      );
+      return;
+    }
+
+    const existing = this.worldObjects.get(objectId);
+    if (!existing) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: { code: 'OBJECT_NOT_FOUND', message: 'Object not found in this region.' },
+        }),
+      );
+      return;
+    }
+
+    const result = applyObjectInteraction(
+      existing,
+      player.id,
+      interactionType,
+      interactionPayload,
+      Date.now(),
+    );
+
+    if (!result.ok || !result.object) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: {
+            code: result.code ?? 'INTERACTION_REJECTED',
+            message: result.message ?? 'Object interaction rejected.',
+          },
+        }),
+      );
+      return;
+    }
+
+    this.worldObjects.set(result.object.id, result.object);
+    await this.persistWorldObjects();
+
+    this.broadcast(
+      makeServerMessage({
+        type: 'region_object_upsert',
+        payload: {
+          region_id: this.regionId,
+          object: result.object,
+          actor_id: player.id,
+        },
+      }),
+    );
+
+    this.broadcast(
+      makeServerMessage({
+        type: 'region_event',
+        payload: {
+          region_id: player.region_id,
+          event_type: 'object_interact',
+          data: {
+            object_id: result.object.id,
+            interaction_type: interactionType,
+            state: result.data ?? null,
+            player_id: player.id,
+          },
+        },
+      }),
+    );
+  }
+
+  private async persistWorldObjects(): Promise<void> {
+    await this.state.storage.put('region_objects', normalizeObjectSnapshot(this.getWorldObjectsArray()));
   }
 
   // ─── NPC AI Response ─────────────────────────────────────────────────────────
@@ -395,12 +656,49 @@ export class RegionRoom implements DurableObject {
     player_count: number;
     players: Player[];
     chat_history: ChatEntry[];
+    object_count: number;
   } {
     return {
       region_id: this.regionId,
       player_count: this.players.size,
       players: this.getPlayersArray(),
       chat_history: this.chatHistory.slice(-50),
+      object_count: this.worldObjects.size,
+    };
+  }
+
+  private getWorldObjectsArray(): RegionWorldObject[] {
+    return Array.from(this.worldObjects.values());
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private clampTransform(input: RegionObjectTransform, fallback?: RegionObjectTransform): RegionObjectTransform {
+    const source = input ?? fallback ?? { x: 0, y: 0, z: 0 };
+    return {
+      x: this.clamp(source.x, -200, 200),
+      y: this.clamp(source.y, -100, 100),
+      z: this.clamp(source.z, -200, 200),
+    };
+  }
+
+  private clampRotation(input?: RegionObjectTransform): RegionObjectTransform {
+    const source = input ?? { x: 0, y: 0, z: 0 };
+    return {
+      x: this.clamp(source.x, -Math.PI * 2, Math.PI * 2),
+      y: this.clamp(source.y, -Math.PI * 2, Math.PI * 2),
+      z: this.clamp(source.z, -Math.PI * 2, Math.PI * 2),
+    };
+  }
+
+  private clampScale(input?: RegionObjectTransform): RegionObjectTransform {
+    const source = input ?? { x: 1, y: 1, z: 1 };
+    return {
+      x: this.clamp(source.x, 0.2, 20),
+      y: this.clamp(source.y, 0.2, 20),
+      z: this.clamp(source.z, 0.2, 20),
     };
   }
 

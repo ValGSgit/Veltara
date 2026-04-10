@@ -99,6 +99,38 @@ export interface PlayerUpdate {
   action: string;
 }
 
+// ─── Region Sandbox ──────────────────────────────────────────────────────────
+
+export type RegionObjectKind = 'block' | 'platform' | 'beacon' | 'orb';
+export type RegionObjectMaterial = 'stone' | 'metal' | 'wood' | 'glass' | 'neon';
+
+export interface RegionWorldObjectTransform {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface RegionWorldObject {
+  id: string;
+  region_id: RegionId;
+  owner_id: string;
+  kind: RegionObjectKind;
+  material: RegionObjectMaterial;
+  position: RegionWorldObjectTransform;
+  rotation: RegionWorldObjectTransform;
+  scale: RegionWorldObjectTransform;
+  interactive: boolean;
+  metadata?: Record<string, unknown>;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface RegionObjectInteraction {
+  object_id: string;
+  interaction_type: string;
+  data?: Record<string, unknown>;
+}
+
 // ─── Social ───────────────────────────────────────────────────────────────────
 
 export interface Post {

@@ -47,6 +47,11 @@ export const store = createStore({
   selfRegionId: null,
   selfLat: 0,
   selfLon: 0,
+  sandboxObjects: new Map(),
+  sandboxBuildMode: false,
+  selectedSandboxObjectId: null,
+  sceneMode: 'planet', // 'planet' | 'region-land'
+  activeRegionLandId: null,
 
   // Chat
   chatMessages: [],
@@ -54,6 +59,7 @@ export const store = createStore({
 
   // UI panels
   activePanel: null, // 'profile' | 'social' | 'store' | 'settings' | null
+  authModal: null, // 'login' | 'register' | null
   showOnboarding: false,
 
   // Connection
