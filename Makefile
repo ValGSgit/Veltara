@@ -1,5 +1,5 @@
 .PHONY: help install dev build test lint typecheck clean \
-        docker-up docker-down docker-clean docker-logs \
+	docker-up docker-up-attach docker-down docker-clean docker-logs \
         certs-setup certs-setup-win \
         deploy-workers deploy-portal
 
@@ -19,7 +19,8 @@ help:
 	@echo "  make clean          - Clean build artifacts"
 	@echo ""
 	@echo "Docker:"
-	@echo "  make docker-up      - Start Docker containers"
+	@echo "  make docker-up      - Start Docker containers in detached mode"
+	@echo "  make docker-up-attach - Start Docker containers and attach logs"
 	@echo "  make docker-down    - Stop Docker containers"
 	@echo "  make docker-clean   - Stop and remove volumes"
 	@echo "  make docker-logs    - Follow Docker logs"
@@ -59,6 +60,9 @@ clean:
 
 # Docker
 docker-up:
+	docker compose up --build -d
+
+docker-up-attach:
 	docker compose up --build
 
 docker-down:
