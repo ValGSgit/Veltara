@@ -24,6 +24,19 @@ interface Env {
 const JWT_EXPIRY_SEC = 3600;         // 1 hour
 const REFRESH_EXPIRY_SEC = 2592000;  // 30 days
 
+// ─── Auth Rate Limiting ──────────────────────────────────────────────────────
+
+const AUTH_RATE_WINDOW_SEC = 900;    // 15-minute window
+const AUTH_MAX_ATTEMPTS = 10;        // max attempts per IP per window
+
+async function checkAuthRateLimit(ip: string, kv: KVNamespace): Promise<boolean> {
+  const key = `auth_rl:${ip}`;
+  const current = parseInt(await kv.get(key) ?? '0');
+  if (current >= AUTH_MAX_ATTEMPTS) return false;
+  await kv.put(key, String(current + 1), { expirationTtl: AUTH_RATE_WINDOW_SEC });
+  return true;
+}
+
 // ─── Password Hashing via PBKDF2 ─────────────────────────────────────────────
 
 async function hashPassword(password: string): Promise<string> {
@@ -53,7 +66,17 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
     256,
   );
   const hashHex = Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, '0')).join('');
-  return hashHex === expected;
+  return timingSafeEqual(hashHex, expected);
+}
+
+/** Constant-time string comparison to prevent timing attacks. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
 }
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -111,6 +134,11 @@ export default {
 // ─── Register ─────────────────────────────────────────────────────────────────
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
+  const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+  if (!(await checkAuthRateLimit(ip, env.KV_SESSIONS))) {
+    return Errors.tooManyRequests('Too many auth attempts. Try again in 15 minutes.');
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = RegisterSchema.safeParse(body);
   if (!parsed.success) {
@@ -176,6 +204,11 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 async function handleLogin(request: Request, env: Env): Promise<Response> {
+  const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+  if (!(await checkAuthRateLimit(ip, env.KV_SESSIONS))) {
+    return Errors.tooManyRequests('Too many login attempts. Try again in 15 minutes.');
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = LoginSchema.safeParse(body);
   if (!parsed.success) return Errors.badRequest('Invalid email or password format');

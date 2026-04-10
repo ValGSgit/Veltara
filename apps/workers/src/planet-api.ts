@@ -162,8 +162,9 @@ async function handleRegionConnect(request: Request, env: Env, path: string): Pr
   const id = env.REGION_ROOM.idFromName(regionId);
   const stub = env.REGION_ROOM.get(id);
 
-  // Forward to Durable Object with region info
+  // Forward to Durable Object with region info, strip token from URL to avoid log leakage
   const doUrl = new URL(request.url);
+  doUrl.searchParams.delete('token');
   doUrl.searchParams.set('region', regionId);
 
   return stub.fetch(new Request(doUrl, request));

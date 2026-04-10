@@ -184,8 +184,10 @@ function setSceneMode(nextMode, regionId = null) {
 
 async function setActivePlanet(planetId) {
   const next = planetId === 'earth-test' || planetId === 'black-hole' ? planetId : 'veltara';
-  if (store.get('activePlanetId') === next) return;
-  store.set('activePlanetId', next);
+  const current = store.get('activePlanetId');
+  if (current !== next) {
+    store.set('activePlanetId', next);
+  }
 
   if (store.get('sceneMode') !== 'planet') return;
 
@@ -236,14 +238,113 @@ sandbox.group.visible = false;
 // Show loading overlay
 const loadingScreen = document.createElement('div');
 loadingScreen.id = 'loading-screen';
-const loadingRing = document.createElement('div');
-loadingRing.className = 'loading-ring';
+const loadingContent = document.createElement('div');
+loadingContent.className = 'loading-content';
 const loadingText = document.createElement('div');
 loadingText.className = 'text-white text-sm font-medium';
 loadingText.textContent = 'Loading Veltara…';
-loadingScreen.appendChild(loadingRing);
-loadingScreen.appendChild(loadingText);
+const loadingSubtext = document.createElement('div');
+loadingSubtext.className = 'loading-subtext';
+loadingSubtext.textContent = 'Preparing scene';
+const loadingBar = document.createElement('div');
+loadingBar.className = 'loading-bar';
+const loadingBarFill = document.createElement('div');
+loadingBarFill.className = 'loading-bar__fill';
+loadingBar.appendChild(loadingBarFill);
+const loadingPercent = document.createElement('div');
+loadingPercent.className = 'loading-percent';
+loadingPercent.textContent = '0%';
+loadingContent.appendChild(loadingText);
+loadingContent.appendChild(loadingSubtext);
+loadingContent.appendChild(loadingBar);
+loadingContent.appendChild(loadingPercent);
+loadingScreen.appendChild(loadingContent);
 document.body.appendChild(loadingScreen);
+
+function setLoadingProgress(progress, label = null) {
+  const clamped = Math.max(0, Math.min(1, Number(progress) || 0));
+  loadingBarFill.style.width = `${Math.round(clamped * 100)}%`;
+  loadingPercent.textContent = `${Math.round(clamped * 100)}%`;
+  if (label) {
+    loadingSubtext.textContent = label;
+  }
+}
+
+function createBootstrapProgress() {
+  const steps = {
+    model: { weight: 0.75, value: 0 },
+    restoreSession: { weight: 0.08, value: 0 },
+    joinPlanet: { weight: 0.1, value: 0 },
+    loadRegions: { weight: 0.07, value: 0 },
+  };
+
+  return {
+    set(step, value, label = null) {
+      if (!steps[step]) return;
+      steps[step].value = Math.max(0, Math.min(1, Number(value) || 0));
+      const progress = Object.values(steps).reduce((sum, item) => sum + (item.weight * item.value), 0);
+      setLoadingProgress(progress, label);
+    },
+  };
+}
+
+function mountQuickPlanetSwitcher() {
+  const root = document.createElement('div');
+  root.id = 'planet-quick-switcher';
+  root.style.position = 'fixed';
+  root.style.top = '12px';
+  root.style.right = '12px';
+  root.style.zIndex = '10001';
+  root.style.display = 'flex';
+  root.style.gap = '6px';
+  root.style.padding = '6px';
+  root.style.borderRadius = '999px';
+  root.style.pointerEvents = 'auto';
+  root.style.background = 'rgba(8, 12, 24, 0.7)';
+  root.style.border = '1px solid rgba(165, 211, 255, 0.28)';
+  root.style.backdropFilter = 'blur(8px)';
+
+  const makeButton = (id, label) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.padding = '6px 10px';
+    btn.style.fontSize = '12px';
+    btn.style.fontWeight = '700';
+    btn.style.borderRadius = '999px';
+    btn.style.cursor = 'pointer';
+    btn.style.color = '#eaf4ff';
+    btn.style.background = 'rgba(255, 255, 255, 0.05)';
+    btn.style.border = '1px solid rgba(165, 211, 255, 0.22)';
+    btn.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('planet-select', { detail: { planetId: id } }));
+    });
+    return btn;
+  };
+
+  const buttons = [
+    ['black-hole', makeButton('black-hole', 'Black Hole')],
+    ['veltara', makeButton('veltara', 'Veltara')],
+    ['earth-test', makeButton('earth-test', 'Earth')],
+  ];
+  buttons.forEach(([, btn]) => root.appendChild(btn));
+  document.body.appendChild(root);
+
+  function updateActive(activePlanetId) {
+    buttons.forEach(([id, btn]) => {
+      const active = id === activePlanetId;
+      btn.style.borderColor = active ? 'rgba(95, 210, 255, 0.65)' : 'rgba(165, 211, 255, 0.22)';
+      btn.style.background = active
+        ? 'linear-gradient(135deg, rgba(55, 203, 255, 0.32), rgba(84, 111, 255, 0.3))'
+        : 'rgba(255, 255, 255, 0.05)';
+    });
+  }
+
+  updateActive(store.get('activePlanetId') ?? 'black-hole');
+  store.on('activePlanetId', (next) => updateActive(next ?? 'black-hole'));
+}
+
+mountQuickPlanetSwitcher();
 
 // ─── WebSocket State ──────────────────────────────────────────────────────────
 
@@ -814,6 +915,21 @@ canvas.addEventListener('click', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
+  if (store.get('sceneMode') !== 'region-land') {
+    if (e.key === '1') {
+      document.dispatchEvent(new CustomEvent('planet-select', { detail: { planetId: 'black-hole' } }));
+      return;
+    }
+    if (e.key === '2') {
+      document.dispatchEvent(new CustomEvent('planet-select', { detail: { planetId: 'veltara' } }));
+      return;
+    }
+    if (e.key === '3') {
+      document.dispatchEvent(new CustomEvent('planet-select', { detail: { planetId: 'earth-test' } }));
+      return;
+    }
+  }
+
   if (e.key === 'Escape' && store.get('sceneMode') === 'region-land') {
     leaveRegionLand();
     return;
@@ -921,14 +1037,51 @@ window.addEventListener('resize', () => {
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 async function bootstrap() {
-  void setActivePlanet(store.get('activePlanetId'));
+  const progress = createBootstrapProgress();
+  const startupPlanetId = store.get('activePlanetId') ?? 'black-hole';
+  const startupPlanet =
+    startupPlanetId === 'earth-test'
+      ? earthPlanet
+      : startupPlanetId === 'black-hole'
+        ? blackHolePlanet
+        : null;
+  if (startupPlanet) {
+    progress.set('model', 0, `Loading ${startupPlanetId === 'earth-test' ? 'Earth' : 'Black Hole'} model`);
+    const loaded = await startupPlanet.loadIfNeeded({
+      onProgress: ({ ratio, loaded: bytesLoaded, total: bytesTotal }) => {
+        if (ratio != null) {
+          progress.set('model', ratio, `Loading model (${Math.round(ratio * 100)}%)`);
+          return;
+        }
+        if (bytesTotal > 0) {
+          const computed = Math.min(1, Math.max(0, bytesLoaded / bytesTotal));
+          progress.set('model', computed, `Loading model (${Math.round(computed * 100)}%)`);
+          return;
+        }
+        progress.set('model', 0, 'Loading model');
+      },
+    });
+    if (!loaded) {
+      progress.set('model', 1, 'Model load failed, using Veltara');
+      store.set('activePlanetId', 'veltara');
+    } else {
+      progress.set('model', 1, 'Model loaded');
+    }
+  } else {
+    progress.set('model', 1, 'Preparing Veltara');
+  }
+
+  await setActivePlanet(store.get('activePlanetId'));
+  progress.set('restoreSession', 0, 'Restoring session');
 
   // Try to restore session
   const user = await api.restoreSession();
+  progress.set('restoreSession', 1, 'Session restored');
 
   if (user) {
     store.update({ user, isAuthenticated: true });
 
+    progress.set('joinPlanet', 0, 'Joining planet');
     // Join planet
     try {
       const { region_id } = await api.joinPlanet(0, 0);
@@ -937,12 +1090,14 @@ async function bootstrap() {
     } catch {
       toast.error('Failed to join planet');
     }
+    progress.set('joinPlanet', 1, 'Planet joined');
 
     // Check onboarding
     if (!localStorage.getItem('onboarding_complete')) {
       showOnboarding();
     }
   } else {
+    progress.set('joinPlanet', 1, 'Awaiting sign in');
     // Show auth modal
     showLoginModal((user) => {
       store.update({ user, isAuthenticated: true });
@@ -956,6 +1111,7 @@ async function bootstrap() {
     });
   }
 
+  progress.set('loadRegions', 0, 'Loading regions');
   // Load regions
   try {
     const { regions: regionData } = await api.getRegions();
@@ -964,8 +1120,10 @@ async function bootstrap() {
     regionData.forEach((r) => { counts[r.id] = r.player_count; });
     store.set('regionCounts', counts);
   } catch { /* non-critical */ }
+  progress.set('loadRegions', 1, 'Ready');
 
   // Dismiss loading screen
+  setLoadingProgress(1, 'Ready');
   loadingScreen.style.opacity = '0';
   loadingScreen.style.transition = 'opacity 0.5s';
   setTimeout(() => loadingScreen.remove(), 500);
@@ -981,7 +1139,7 @@ async function bootstrap() {
     lastSentLat = lat;
     lastSentLon = lon;
     socket.send('position_update', { lat, lon, action: 'exploring' });
-  }, 100); // 10hz max
+  }, 500); // 2hz — fast enough for smooth region assignment, light on bandwidth
 }
 
 // ─── Animation Loop ───────────────────────────────────────────────────────────
@@ -1014,23 +1172,23 @@ function animate() {
   }
 
   cameraCtrl.update(delta);
-  planet.updateLOD(cameraCtrl.distance);
 
+  const inRegionLand = store.get('sceneMode') === 'region-land';
   const counts = store.get('regionCounts') ?? {};
-  if (store.get('sceneMode') !== 'region-land') {
+
+  if (!inRegionLand) {
+    planet.updateLOD(cameraCtrl.distance);
     regions.update(counts, elapsed);
+    minimap.update(elapsed);
+
+    // Update minimap player data (skip in region-land — minimap is hidden)
+    const allPlayers = store.get('players') ?? new Map();
+    const selfId = store.get('user')?.id;
+    minimap.setPlayers(allPlayers, selfId);
+    minimap.setRegionCounts(counts);
   }
 
   players.update(delta, elapsed);
-  if (store.get('sceneMode') !== 'region-land') {
-    minimap.update(elapsed);
-  }
-
-  // Update minimap player data
-  const allPlayers = store.get('players') ?? new Map();
-  const selfId = store.get('user')?.id;
-  minimap.setPlayers(allPlayers, selfId);
-  minimap.setRegionCounts(counts);
 
   renderer.render(scene, camera);
 }

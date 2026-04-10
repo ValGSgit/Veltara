@@ -34,11 +34,11 @@ const emit = defineEmits(['navigate', 'open-panel', 'auth']);
 </script>
 
 <template>
-  <nav class="app-nav glass-panel">
-    <div class="app-nav__brand" @click="emit('navigate', 'home')">
-      <span class="app-nav__logo">V</span>
+  <nav class="app-nav glass-panel" aria-label="Main navigation">
+    <button class="app-nav__brand" type="button" @click="emit('navigate', 'home')" aria-label="Go to home">
+      <span class="app-nav__logo" aria-hidden="true">V</span>
       <span class="app-nav__title">VELTARA</span>
-    </div>
+    </button>
 
     <div class="app-nav__links">
       <button class="app-nav__link" :class="{ 'is-active': currentPage === 'home' }" @click="emit('navigate', 'home')">

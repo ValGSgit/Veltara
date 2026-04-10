@@ -142,8 +142,8 @@ export function mountAppShell() {
     },
     template: `
       <div>
-        <aside class="global-sidebar glass-panel">
-          <div class="global-sidebar__title">Navigate</div>
+        <aside class="global-sidebar glass-panel" role="navigation" aria-label="Quick access sidebar">
+          <div class="global-sidebar__title" aria-hidden="true">Navigate</div>
           <button
             class="global-sidebar__btn"
             :class="{ 'is-active': currentPage === 'home' }"
@@ -247,10 +247,11 @@ export function mountAppShell() {
           @action="triggerSandboxAction"
         />
 
-        <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land'">
+        <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land'" role="toolbar" aria-label="Planet switcher">
           <button
             class="planet-switcher__btn"
             :class="{ 'is-active': shellState.activePlanetId === 'black-hole' }"
+            :aria-pressed="shellState.activePlanetId === 'black-hole'"
             @click="selectPlanet('black-hole')"
           >
             Black Hole (Menu)
@@ -258,6 +259,7 @@ export function mountAppShell() {
           <button
             class="planet-switcher__btn"
             :class="{ 'is-active': shellState.activePlanetId === 'veltara' }"
+            :aria-pressed="shellState.activePlanetId === 'veltara'"
             @click="selectPlanet('veltara')"
           >
             Veltara
@@ -265,6 +267,7 @@ export function mountAppShell() {
           <button
             class="planet-switcher__btn"
             :class="{ 'is-active': shellState.activePlanetId === 'earth-test' }"
+            :aria-pressed="shellState.activePlanetId === 'earth-test'"
             @click="selectPlanet('earth-test')"
           >
             Earth (Test)

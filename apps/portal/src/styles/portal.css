@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --portal-bg: #06080f;
   --portal-panel: #101420;

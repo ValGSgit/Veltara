@@ -123,11 +123,17 @@ async function handleFeed(request: Request, env: Env): Promise<Response> {
 
 // ─── POST /api/posts ──────────────────────────────────────────────────────────
 
+const ALLOWED_MEDIA_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4', 'video/webm',
+]);
+const MAX_MEDIA_BASE64_LEN = 10 * 1024 * 1024; // ~7.5 MB decoded
+
 const CreatePostSchema = z.object({
   content: z.string().min(1).max(5000),
-  region_id: z.string().nullable().optional(),
-  media_base64: z.string().optional(),
-  media_type: z.string().optional(),
+  region_id: z.string().max(64).nullable().optional(),
+  media_base64: z.string().max(MAX_MEDIA_BASE64_LEN).optional(),
+  media_type: z.string().max(64).optional(),
 });
 
 async function handleCreatePost(request: Request, env: Env): Promise<Response> {
@@ -145,7 +151,21 @@ async function handleCreatePost(request: Request, env: Env): Promise<Response> {
 
   // Upload media to R2 if provided
   if (media_base64 && media_type) {
-    const binaryStr = atob(media_base64);
+    if (!ALLOWED_MEDIA_TYPES.has(media_type)) {
+      return Errors.badRequest('Unsupported media type. Allowed: JPEG, PNG, GIF, WebP, MP4, WebM');
+    }
+
+    let binaryStr: string;
+    try {
+      binaryStr = atob(media_base64);
+    } catch {
+      return Errors.badRequest('Invalid base64 media data');
+    }
+
+    if (binaryStr.length > 8 * 1024 * 1024) {
+      return Errors.badRequest('Media file too large (max 8 MB)');
+    }
+
     const bytes = new Uint8Array(binaryStr.length);
     for (let i = 0; i < binaryStr.length; i++) {
       bytes[i] = binaryStr.charCodeAt(i);

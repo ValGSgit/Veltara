@@ -19,6 +19,15 @@ const COLORS = {
   event: 'border-purple-500/40 bg-purple-500/10',
 };
 
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 /**
  * Shows a toast notification.
  * @param {string} message
@@ -33,11 +42,22 @@ export function showToast(message, type = 'info', duration = 4000) {
     ${COLORS[type] ?? COLORS.info}
   `.trim().replace(/\s+/g, ' ');
 
-  toast.innerHTML = `
-    <span class="shrink-0">${ICONS[type] ?? ICONS.info}</span>
-    <span class="flex-1">${message}</span>
-    <button aria-label="Dismiss" class="shrink-0 opacity-60 hover:opacity-100 transition-opacity text-lg leading-none">&times;</button>
-  `;
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'shrink-0';
+  iconSpan.innerHTML = ICONS[type] ?? ICONS.info; // SVG icon literals (trusted)
+
+  const textSpan = document.createElement('span');
+  textSpan.className = 'flex-1';
+  textSpan.textContent = message; // textContent — safe, never parsed as HTML
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.setAttribute('aria-label', 'Dismiss');
+  dismissBtn.className = 'shrink-0 opacity-60 hover:opacity-100 transition-opacity text-lg leading-none';
+  dismissBtn.textContent = '\u00d7';
+
+  toast.appendChild(iconSpan);
+  toast.appendChild(textSpan);
+  toast.appendChild(dismissBtn);
 
   const dismiss = () => {
     toast.style.transform = 'translateX(110%)';
@@ -45,7 +65,7 @@ export function showToast(message, type = 'info', duration = 4000) {
     setTimeout(() => toast.remove(), 300);
   };
 
-  toast.querySelector('button').addEventListener('click', dismiss);
+  dismissBtn.addEventListener('click', dismiss);
   container.appendChild(toast);
 
   // Trigger animation

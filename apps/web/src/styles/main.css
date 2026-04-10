@@ -10,6 +10,8 @@
   --veltara-border: #1e1e32;
   --veltara-accent: #6c63ff;
   --veltara-glow: #4fffb0;
+  --text-primary: #e2e2f0;
+  --text-muted: #6b6b8a;
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────────────── */
@@ -207,6 +209,11 @@ body::after {
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
 }
 
 .app-nav__logo {
@@ -1285,17 +1292,41 @@ body::after {
   gap: 1.5rem;
 }
 
-.loading-ring {
-  width: 48px;
-  height: 48px;
-  border: 3px solid rgba(108, 99, 255, 0.2);
-  border-top-color: var(--veltara-accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+.loading-content {
+  width: min(90vw, 460px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.loading-subtext {
+  font-size: 0.78rem;
+  color: #9fb1cc;
+}
+
+.loading-bar {
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(108, 99, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.loading-bar__fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(79, 255, 176, 0.88), rgba(108, 99, 255, 0.95));
+  transition: width 0.16s ease-out;
+}
+
+.loading-percent {
+  font-size: 0.74rem;
+  color: #bcd0ee;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: right;
 }
 
 /* ─── Focus Visible ─────────────────────────────────────────────────────────── */

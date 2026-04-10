@@ -61,6 +61,8 @@ defineProps({
             :key="region.id"
             class="region-card"
             :class="{ 'region-card--active': region.id === shellState.selfRegionId }"
+            :aria-current="region.id === shellState.selfRegionId ? 'location' : undefined"
+            :aria-label="'Teleport to ' + region.name + ' (' + (region.users ?? 0) + ' online)'"
             @click="teleport(region.id)"
           >
             <span class="region-card__dot" :style="{ background: region.color }"></span>
@@ -187,7 +189,7 @@ defineProps({
             <button class="chat-tab-vue" :class="{ 'chat-tab-vue--active': shellState.chatTab === 'global' }" @click="setChatTab('global')">Global</button>
           </div>
 
-          <div class="chat-stream">
+          <div class="chat-stream" role="log" aria-label="Chat messages" aria-live="polite">
             <div v-if="!chatMessages.length" class="empty-state">No messages yet.</div>
             <div v-for="msg in chatMessages" :key="msg.id ?? msg.timestamp ?? msg.text" class="chat-message-vue">
               <span class="chat-message-vue__author" :class="msg.is_npc ? 'chat-message-vue__author--npc' : ''">

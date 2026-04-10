@@ -12,6 +12,7 @@ export class PlanetModel {
     this.scene.add(this.group);
     this.isLoaded = false;
     this.loaderPromise = null;
+    this.lastProgress = null;
   }
 
   detectFormat(url) {
@@ -24,7 +25,8 @@ export class PlanetModel {
     this.group.visible = Boolean(visible);
   }
 
-  async loadIfNeeded() {
+  async loadIfNeeded(options = {}) {
+    const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
     if (this.isLoaded) return true;
     if (this.loaderPromise) return this.loaderPromise;
 
@@ -61,14 +63,26 @@ export class PlanetModel {
               this.group.clear();
               this.group.add(model);
               this.isLoaded = true;
+              this.lastProgress = { loaded: 1, total: 1, ratio: 1 };
+              onProgress?.(this.lastProgress);
               resolve(true);
             },
-            undefined,
+            (event) => {
+              const loaded = Number(event?.loaded ?? 0);
+              const total = Number(event?.total ?? 0);
+              const ratio = total > 0 ? Math.min(1, loaded / total) : null;
+              this.lastProgress = { loaded, total, ratio };
+              onProgress?.(this.lastProgress);
+            },
             () => resolve(false),
           );
         });
       })
-      .catch(() => false);
+      .catch(() => false)
+      .then((result) => {
+        if (!result) this.loaderPromise = null; // allow retry on failure
+        return result;
+      });
 
     return this.loaderPromise;
   }

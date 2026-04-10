@@ -30,14 +30,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared (required by all packages)
+        run: pnpm --filter @veltara/shared build
+
       - name: Typecheck
         run: pnpm --recursive --if-present typecheck
 
-      - name: Test
-        run: pnpm --filter @veltara/workers test
+      - name: Lint
+        run: pnpm --recursive --if-present lint
 
-      - name: Build shared + sdk
-        run: pnpm --filter @veltara/shared build && pnpm --filter @veltara/sdk build
+      - name: Test
+        run: pnpm --recursive --if-present test
+
+      - name: Build SDK
+        run: pnpm --filter @veltara/sdk build
 
       - name: Build web
         run: pnpm --filter @veltara/web build

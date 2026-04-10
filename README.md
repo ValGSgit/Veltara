@@ -150,7 +150,8 @@ Deploy workflow expects these GitHub secrets:
 
 - CF_ACCOUNT_ID
 - CF_API_TOKEN
-- CF_PAGES_PROJECT
+- CF_PAGES_PROJECT (portal)
+- CF_PAGES_WEB_PROJECT (web app)
 
 ## Current Status
 
