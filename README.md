@@ -47,7 +47,7 @@ If you want local development without installing Node and pnpm directly, use Doc
 3. Open apps:
 	- Web: https://localhost:5173
 	- Portal: https://localhost:5174
-	- Workers: https://localhost:8787
+	- Workers: http://localhost:8787 (container-internal)
 
 Useful commands:
 - Stop: docker compose down
@@ -61,6 +61,7 @@ Cleanup levels:
 
 Notes:
 - The compose stack includes a deps bootstrap service that installs workspace dependencies into compose volumes before web/portal/workers start.
+- Web and Portal stay HTTPS for browser dev certs, while container-internal proxy traffic to Workers uses HTTP to avoid Wrangler TLS handshake noise in Docker logs.
 - If dependencies get out of sync after package changes, rerun:
 	- docker compose run --rm deps
 - After dependency volume layout changes, do a one-time reset:

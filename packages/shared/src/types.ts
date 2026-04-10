@@ -114,6 +114,7 @@ export interface RegionWorldObject {
   id: string;
   region_id: RegionId;
   owner_id: string;
+  version: number;
   kind: RegionObjectKind;
   material: RegionObjectMaterial;
   position: RegionWorldObjectTransform;

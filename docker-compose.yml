@@ -36,7 +36,7 @@ services:
       CI: "1"
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-${CF_API_TOKEN:-}}
     command: >
-      pnpm --filter @veltara/workers exec wrangler dev --local --ip 0.0.0.0 --port 8787 --local-protocol https
+      pnpm --filter @veltara/workers exec wrangler dev --local --ip 0.0.0.0 --port 8787 --local-protocol http
     ports:
       - "8787:8787"
     depends_on:
@@ -59,7 +59,7 @@ services:
       - .env
     environment:
       NODE_ENV: development
-      WORKERS_PROXY_TARGET: https://workers:8787
+      WORKERS_PROXY_TARGET: http://workers:8787
       DEV_HTTPS: "true"
       CI: "1"
     command: >
@@ -88,7 +88,8 @@ services:
       - .env
     environment:
       NODE_ENV: development
-      VITE_API_BASE_URL: https://localhost:8787
+      VITE_API_BASE_URL: ""
+      WORKERS_PROXY_TARGET: http://workers:8787
       DEV_HTTPS: "true"
       CI: "1"
     command: >

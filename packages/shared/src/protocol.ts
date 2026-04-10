@@ -19,6 +19,7 @@ export const RegionWorldObjectSchema = z.object({
   id: z.string(),
   region_id: z.string(),
   owner_id: z.string(),
+  version: z.number().int().nonnegative(),
   kind: z.enum(['block', 'platform', 'beacon', 'orb']),
   material: z.enum(['stone', 'metal', 'wood', 'glass', 'neon']),
   position: z.object({

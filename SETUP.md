@@ -127,7 +127,7 @@ docker compose up --build
 Services and ports:
 - Web app: https://localhost:5173
 - Portal: https://localhost:5174
-- Workers: https://localhost:8787
+- Workers: http://localhost:8787 (container-internal)
 
 Shutdown:
 
@@ -157,6 +157,7 @@ pnpm docker:clean:hard
 - If TypeScript cannot find Worker types, ensure dependencies are installed in apps/workers.
 - If portal styles are missing, confirm apps/portal/src/styles/portal.css exists.
 - If ws calls fail locally, verify Vite proxy and Wrangler dev are both running.
+- In Docker Compose, Web/Portal proxy to Workers over HTTP internally (`http://workers:8787`) even when browser-facing app URLs are HTTPS.
 - If browser warns about local HTTPS certificates, run the mkcert setup commands above.
 - If compose services fail with commands like vite/wrangler not found, run:
 	```bash
