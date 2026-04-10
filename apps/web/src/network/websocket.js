@@ -5,7 +5,8 @@
 
 import { parseServerMessage, exponentialBackoff } from '@veltara/shared';
 
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL ?? `ws://${window.location.host}`;
+const WS_BASE = import.meta.env.VITE_WS_BASE_URL
+  ?? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
 
 export class RegionSocket {
   /** @type {WebSocket|null} */

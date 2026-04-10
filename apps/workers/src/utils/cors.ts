@@ -7,9 +7,9 @@ const ALLOWED_ORIGINS = [
   'https://veltara.gg',
   'https://www.veltara.gg',
   'https://dev.veltara.gg',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:4173',
+  'https://localhost:5173',
+  'https://localhost:5174',
+  'https://localhost:4173',
 ];
 
 export function getCorsHeaders(request: Request): Record<string, string> {

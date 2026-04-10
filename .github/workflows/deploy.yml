@@ -1,0 +1,71 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-workers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: apps/workers
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+        working-directory: .
+
+      - name: Deploy Workers
+        run: pnpm deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets['CF_ACCOUNT_ID'] }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets['CF_API_TOKEN'] }}
+
+  deploy-portal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Build portal
+        run: pnpm --filter @veltara/portal build
+
+      - name: Deploy portal to Cloudflare Pages
+        run: pnpm dlx wrangler pages deploy apps/portal/dist --project-name=${{ secrets['CF_PAGES_PROJECT'] }} --branch=main
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets['CF_ACCOUNT_ID'] }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets['CF_API_TOKEN'] }}

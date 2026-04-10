@@ -1,0 +1,105 @@
+:root {
+  --portal-bg: #06080f;
+  --portal-panel: #101420;
+  --portal-border: #1f2638;
+  --portal-text: #e6ebff;
+  --portal-muted: #8b93aa;
+  --portal-accent: #6c63ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(108, 99, 255, 0.16), transparent 60%),
+    radial-gradient(900px 420px at 10% 10%, rgba(0, 212, 255, 0.08), transparent 60%),
+    var(--portal-bg);
+  color: var(--portal-text);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#page-root {
+  min-height: 100vh;
+}
+
+.portal-input {
+  width: 100%;
+  background: #0e1220;
+  border: 1px solid var(--portal-border);
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  color: var(--portal-text);
+  font-size: 0.875rem;
+}
+
+.portal-input:focus {
+  outline: none;
+  border-color: var(--portal-accent);
+  box-shadow: 0 0 0 1px rgba(108, 99, 255, 0.35);
+}
+
+.portal-btn {
+  border: 0;
+  border-radius: 0.6rem;
+  background: linear-gradient(90deg, #6c63ff, #5a92ff);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+}
+
+.portal-btn:hover {
+  filter: brightness(1.08);
+}
+
+.prose-veltara {
+  color: var(--portal-text);
+}
+
+.prose-veltara h1,
+.prose-veltara h2,
+.prose-veltara h3,
+.prose-veltara h4 {
+  letter-spacing: -0.01em;
+}
+
+.prose-veltara p {
+  color: #a8afc3;
+}
+
+.code-block {
+  background: #0b101c;
+  border: 1px solid var(--portal-border);
+  border-radius: 0.75rem;
+  overflow-x: auto;
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 0.9rem 1rem;
+}
+
+.code-block code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #ced6f8;
+}
+
+@media (max-width: 768px) {
+  #portal-nav {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
+}

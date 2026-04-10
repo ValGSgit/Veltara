@@ -1,0 +1,14 @@
+.git
+.github
+.sixth
+node_modules
+**/node_modules
+**/dist
+**/.wrangler
+coverage
+*.log
+Dockerfile*
+docker-compose*.yml
+.env
+.env.local
+.vscode
