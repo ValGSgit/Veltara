@@ -29,6 +29,12 @@ interface Env {
   STRIPE_CONNECT_CLIENT_ID: string;
   STRIPE_PRICE_PRO: string;
   STRIPE_PRICE_STUDIO: string;
+  DEV_FAKE_STRIPE?: string;
+}
+
+function isFakeStripeMode(env: Env): boolean {
+  const value = (env.DEV_FAKE_STRIPE ?? '').toLowerCase().trim();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
 }
 
 // ─── Stripe API Helpers ───────────────────────────────────────────────────────
@@ -139,6 +145,15 @@ async function handleSubscribe(request: Request, env: Env): Promise<Response> {
   if (!parsed.success) return Errors.badRequest(parsed.error.message);
 
   const { plan, success_url, cancel_url } = parsed.data;
+
+  if (isFakeStripeMode(env)) {
+    return jsonResponse({
+      checkout_url: `${success_url}${success_url.includes('?') ? '&' : '?'}dev_stripe=1&plan=${encodeURIComponent(plan)}`,
+      mock: true,
+      cancel_url,
+    });
+  }
+
   const priceId = plan === 'pro' ? env.STRIPE_PRICE_PRO : env.STRIPE_PRICE_STUDIO;
 
   const db = createSupabaseClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
@@ -184,6 +199,10 @@ async function handlePortal(request: Request, env: Env): Promise<Response> {
   const body = await request.json().catch(() => ({})) as { return_url?: string };
   const returnUrl = body.return_url ?? 'https://veltara.gg';
 
+  if (isFakeStripeMode(env)) {
+    return jsonResponse({ portal_url: `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}dev_billing_portal=1`, mock: true });
+  }
+
   const db = createSupabaseClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
   const { data: user } = await db
     .from('users')
@@ -207,8 +226,10 @@ async function handleBillingWebhook(request: Request, env: Env): Promise<Respons
   const body = await request.text();
   const sig = request.headers.get('Stripe-Signature') ?? '';
 
-  const valid = await verifyStripeWebhook(body, sig, env.STRIPE_WEBHOOK_SECRET);
-  if (!valid) return Errors.badRequest('Invalid webhook signature');
+  if (!isFakeStripeMode(env)) {
+    const valid = await verifyStripeWebhook(body, sig, env.STRIPE_WEBHOOK_SECRET);
+    if (!valid) return Errors.badRequest('Invalid webhook signature');
+  }
 
   const event = JSON.parse(body) as {
     type: string;
@@ -414,6 +435,13 @@ async function handleCreditPurchase(request: Request, env: Env): Promise<Respons
   const pack = CREDIT_PACKS[parsed.data.pack_index];
   if (!pack) return Errors.badRequest('Invalid credit pack');
 
+  if (isFakeStripeMode(env)) {
+    return jsonResponse({
+      checkout_url: `${parsed.data.success_url}${parsed.data.success_url.includes('?') ? '&' : '?'}dev_credits=1&credits=${pack.credits}`,
+      mock: true,
+    });
+  }
+
   const db = createSupabaseClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
   const { data: user } = await db
     .from('users')
@@ -446,8 +474,10 @@ async function handleCreditWebhook(request: Request, env: Env): Promise<Response
   const body = await request.text();
   const sig = request.headers.get('Stripe-Signature') ?? '';
 
-  const valid = await verifyStripeWebhook(body, sig, env.STRIPE_WEBHOOK_SECRET);
-  if (!valid) return Errors.badRequest('Invalid signature');
+  if (!isFakeStripeMode(env)) {
+    const valid = await verifyStripeWebhook(body, sig, env.STRIPE_WEBHOOK_SECRET);
+    if (!valid) return Errors.badRequest('Invalid signature');
+  }
 
   const event = JSON.parse(body) as { type: string; data: { object: Record<string, unknown> } };
 

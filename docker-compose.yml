@@ -10,7 +10,7 @@ services:
     environment:
       CI: "1"
     command: >
-      pnpm install --no-frozen-lockfile --force
+      pnpm install --no-frozen-lockfile
     volumes:
       - ./:/workspace
       - veltara_node_modules:/workspace/node_modules

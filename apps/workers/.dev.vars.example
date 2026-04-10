@@ -1,0 +1,18 @@
+# Wrangler local variables for apps/workers
+# Copy to apps/workers/.dev.vars for local wrangler dev
+
+# Required core app secrets
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_SERVICE_KEY=local-supabase-service-role-key
+JWT_SECRET=dev-jwt-secret-change-me-32-chars-minimum
+
+# Optional in local mode when DEV_FAKE_STRIPE=true
+STRIPE_SECRET_KEY=sk_test_local_placeholder
+STRIPE_WEBHOOK_SECRET=whsec_local_placeholder
+STRIPE_CONNECT_CLIENT_ID=ca_local_placeholder
+STRIPE_PRICE_PRO=price_local_pro
+STRIPE_PRICE_STUDIO=price_local_studio
+
+# Dev-only feature toggles
+# Enables mocked Stripe checkout/portal/webhook flows so billing can be tested without real Stripe secrets.
+DEV_FAKE_STRIPE=true

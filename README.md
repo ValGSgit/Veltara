@@ -113,6 +113,14 @@ See .env.example for all expected values, including:
 - CF_ACCOUNT_ID
 - CF_API_TOKEN
 
+For local testing without real Stripe secrets:
+
+- Copy .env.dev.example to .env.
+- Copy apps/workers/.dev.vars.example to apps/workers/.dev.vars.
+- Keep DEV_FAKE_STRIPE=true in apps/workers/.dev.vars.
+
+This enables mocked billing endpoints while keeping the rest of the stack functional for development.
+
 ## CI/CD
 
 - PR and main validation workflow: .github/workflows/ci.yml

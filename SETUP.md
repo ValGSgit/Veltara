@@ -25,6 +25,25 @@ cp .env.example .env
 - CF_ACCOUNT_ID
 - CF_API_TOKEN
 
+### Fast local dev mode (no real Stripe secrets)
+Use this when you want to test product flows before provisioning production credentials.
+
+1. Copy local-safe env values:
+```bash
+cp .env.dev.example .env
+cp apps/workers/.dev.vars.example apps/workers/.dev.vars
+```
+2. Keep `DEV_FAKE_STRIPE=true` in `apps/workers/.dev.vars`.
+3. Start stack:
+```bash
+pnpm dev
+```
+
+Notes:
+- Auth, world, social, API key flows still require Supabase values.
+- Billing endpoints run in mocked mode and return simulated checkout/portal URLs.
+- Deployment still requires real Cloudflare secrets and should use production env values.
+
 ## 4. Start Apps
 Run web + workers + portal concurrently:
 ```bash
