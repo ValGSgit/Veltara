@@ -85,6 +85,13 @@ body::after {
   border: 1px solid rgba(148, 163, 184, 0.14);
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(18px);
+  animation: glass-pulse 8s infinite alternate ease-in-out;
+}
+
+@keyframes glass-pulse {
+  0% { box-shadow: 0 18px 60px rgba(0, 0, 0, 0.34), inset 0 0 0 rgba(79, 255, 176, 0); }
+  50% { box-shadow: 0 18px 60px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(79, 255, 176, 0.05); border-color: rgba(148, 163, 184, 0.2); }
+  100% { box-shadow: 0 18px 60px rgba(0, 0, 0, 0.34), inset 0 0 0 rgba(79, 255, 176, 0); }
 }
 
 .lobby-shell {
@@ -402,12 +409,16 @@ body::after {
   text-align: left;
   cursor: pointer;
   color: #f5f7ff;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  will-change: transform, box-shadow, border-color, background;
 }
 
 .region-card:hover,
 .region-card--active {
   border-color: rgba(79, 255, 176, 0.28);
   background: rgba(79, 255, 176, 0.05);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(79, 255, 176, 0.1);
 }
 
 .region-card__dot,

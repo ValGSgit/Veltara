@@ -154,14 +154,38 @@ export class Planet {
     // Ambient fill
     this.scene.add(new THREE.AmbientLight(0x111133, 0.3));
 
-    // Sun sprite
-    const sunGeo = new THREE.SphereGeometry(1.5, 16, 16);
-    const sunMat = new THREE.MeshBasicMaterial({
-      color: 0xfffbe0,
+    // Create a dynamic radial gradient texture for sun glow
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.8)');
+    gradient.addColorStop(0.5, 'rgba(255, 180, 100, 0.3)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 256, 256);
+    
+    const glowTexture = new THREE.CanvasTexture(canvas);
+    
+    const sunMat = new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: 0xffffee,
       transparent: true,
-      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
-    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    
+    const sunMesh = new THREE.Sprite(sunMat);
+    sunMesh.scale.set(40, 40, 1);
+    
+    // Core white sphere
+    const coreGeo = new THREE.SphereGeometry(1.5, 16, 16);
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+    sunMesh.add(coreMesh);
+
     sunMesh.position.copy(this.sunDirection).multiplyScalar(100);
     this.scene.add(sunMesh);
 

@@ -62,42 +62,124 @@ const regionLand = new RegionLandScene(scene);
 const cameraCtrl = new CameraController(camera, canvas);
 const minimap = new Minimap();
 
+/** @type {{ spherical: { radius: number, phi: number, theta: number }, targetSpherical: { radius: number, phi: number, theta: number } } | null} */
+let planetCameraSnapshot = null;
+
+function captureCameraState() {
+  return {
+    spherical: {
+      radius: cameraCtrl.spherical.radius,
+      phi: cameraCtrl.spherical.phi,
+      theta: cameraCtrl.spherical.theta,
+    },
+    targetSpherical: {
+      radius: cameraCtrl.targetSpherical.radius,
+      phi: cameraCtrl.targetSpherical.phi,
+      theta: cameraCtrl.targetSpherical.theta,
+    },
+  };
+}
+
+function restoreCameraState(snapshot) {
+  if (!snapshot) return;
+
+  cameraCtrl.spherical.radius = snapshot.spherical.radius;
+  cameraCtrl.spherical.phi = snapshot.spherical.phi;
+  cameraCtrl.spherical.theta = snapshot.spherical.theta;
+
+  cameraCtrl.targetSpherical.radius = snapshot.targetSpherical.radius;
+  cameraCtrl.targetSpherical.phi = snapshot.targetSpherical.phi;
+  cameraCtrl.targetSpherical.theta = snapshot.targetSpherical.theta;
+}
+
+function playTransition(callback) {
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.inset = 0;
+  overlay.style.backgroundColor = '#070a14';
+  overlay.style.zIndex = 9999;
+  overlay.style.opacity = 0;
+  overlay.style.pointerEvents = 'none';
+  overlay.style.transition = 'opacity 0.3s ease-out';
+  document.body.appendChild(overlay);
+  
+  // force reflow
+  overlay.offsetHeight;
+  overlay.style.opacity = 1;
+  
+  setTimeout(() => {
+    callback();
+    overlay.style.opacity = 0;
+    setTimeout(() => overlay.remove(), 300);
+  }, 350);
+}
+
+function setSceneMode(nextMode, regionId = null) {
+  const currentMode = store.get('sceneMode');
+  if (currentMode === nextMode && (nextMode !== 'region-land' || store.get('activeRegionLandId') === regionId)) {
+    return;
+  }
+
+  playTransition(() => {
+    if (nextMode === 'region-land') {
+      if (currentMode !== 'region-land') {
+        planetCameraSnapshot = captureCameraState();
+      }
+
+      store.set('sceneMode', 'region-land');
+      store.set('activeRegionLandId', regionId);
+
+      planet.mesh.visible = false;
+      planet.atmosphere.visible = false;
+      planet.clouds.visible = false;
+      regions.markers.forEach((group) => { group.visible = false; });
+      players.instancedMesh.visible = false;
+      minimap.canvas.style.display = 'none';
+
+      regionLand.enter(regionId);
+      regionLand.focusCamera(cameraCtrl);
+
+      sandbox.group.visible = true;
+      sandbox.setPlacementSurface(regionLand.getPlacementSurface());
+      return;
+    }
+
+    store.set('sceneMode', 'planet');
+    store.set('activeRegionLandId', null);
+
+    planet.mesh.visible = true;
+    planet.atmosphere.visible = true;
+    planet.clouds.visible = true;
+    regions.markers.forEach((group) => { group.visible = true; });
+    players.instancedMesh.visible = true;
+    minimap.canvas.style.display = 'block';
+
+    regionLand.leave();
+    restoreCameraState(planetCameraSnapshot);
+    planetCameraSnapshot = null;
+
+    sandbox.setSelected(null);
+    store.set('selectedSandboxObjectId', null);
+    store.set('sandboxBuildMode', false);
+    sandbox.group.visible = false;
+    sandbox.setPlacementSurface(planet.mesh);
+  });
+}
+
 function enterRegionLand(regionId) {
-  store.set('sceneMode', 'region-land');
-  store.set('activeRegionLandId', regionId);
-
-  planet.mesh.visible = false;
-  planet.atmosphere.visible = false;
-  planet.clouds.visible = false;
-  regions.markers.forEach((group) => { group.visible = false; });
-  players.instancedMesh.visible = false;
-  minimap.canvas.style.display = 'none';
-
-  regionLand.enter(regionId);
-  regionLand.focusCamera(cameraCtrl);
-  sandbox.setPlacementSurface(regionLand.getPlacementSurface());
+  setSceneMode('region-land', regionId);
 
   toast.info('Entered region land sandbox. Press Esc to return to planet.', 3500);
 }
 
 function leaveRegionLand() {
-  store.set('sceneMode', 'planet');
-  store.set('activeRegionLandId', null);
-
-  planet.mesh.visible = true;
-  planet.atmosphere.visible = true;
-  planet.clouds.visible = true;
-  regions.markers.forEach((group) => { group.visible = true; });
-  players.instancedMesh.visible = true;
-  minimap.canvas.style.display = 'block';
-
-  regionLand.leave();
-  sandbox.setPlacementSurface(planet.mesh);
+  setSceneMode('planet');
 }
 
 // ─── HUD / Shell ─────────────────────────────────────────────────────────────
 
 mountLobbyShell();
+sandbox.group.visible = false;
 
 // Show loading overlay
 const loadingScreen = document.createElement('div');
@@ -327,6 +409,33 @@ function sendSandboxInteraction(interactionType, payload) {
   });
 }
 
+function getNodeType(object) {
+  const explicit = object?.metadata?.node_type;
+  if (explicit === 'door' || explicit === 'storage' || explicit === 'crafting') return explicit;
+  if (object?.kind === 'beacon') return 'door';
+  if (object?.kind === 'platform') return 'crafting';
+  return 'storage';
+}
+
+function canRepairObject(object, userId) {
+  const health = object?.metadata?.health;
+  const max = Number(health?.max ?? 100);
+  const current = Number(health?.current ?? max);
+  const role = object?.metadata?.permissions?.[userId];
+  return current < max && (object?.owner_id === userId || role === 'builder');
+}
+
+function sendRepairInteraction() {
+  const selectedId = store.get('selectedSandboxObjectId');
+  if (!selectedId || !socket?.isConnected) return;
+  const selected = sandbox.getObjectById(selectedId);
+  if (!selected) return;
+
+  const userId = store.get('user')?.id;
+  if (!userId || !canRepairObject(selected, userId)) return;
+  sendSandboxInteraction('repair');
+}
+
 function rotateSelectedSandboxObject() {
   const selectedId = store.get('selectedSandboxObjectId');
   if (!selectedId || !socket?.isConnected) return;
@@ -388,6 +497,41 @@ document.addEventListener('sandbox-ui-action', (e) => {
 
   if (action === 'remove') {
     removeSelectedSandboxObject();
+    return;
+  }
+
+  if (action === 'lock') {
+    sendSandboxInteraction('door_lock');
+    return;
+  }
+
+  if (action === 'unlock') {
+    sendSandboxInteraction('door_unlock');
+    return;
+  }
+
+  if (action === 'put') {
+    sendSandboxInteraction('storage_put', { item_id: 'ore', count: 1 });
+    return;
+  }
+
+  if (action === 'take') {
+    sendSandboxInteraction('storage_take', { item_id: 'ore', count: 1 });
+    return;
+  }
+
+  if (action === 'start-craft') {
+    sendSandboxInteraction('craft_start', { recipe: 'iron_ingot', duration_ms: 15000 });
+    return;
+  }
+
+  if (action === 'collect-craft') {
+    sendSandboxInteraction('craft_collect');
+    return;
+  }
+
+  if (action === 'repair') {
+    sendRepairInteraction();
   }
 });
 
@@ -416,6 +560,8 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('click', (e) => {
+  if (store.get('sceneMode') !== 'region-land') return;
+
   const mouse = CameraController.getNDC(e, canvas);
   const selectedObject = sandbox.pickObject(mouse, camera);
 
@@ -438,7 +584,7 @@ canvas.addEventListener('click', (e) => {
     mouse,
     camera,
     store.get('user')?.id,
-    store.get('selfRegionId'),
+    store.get('activeRegionLandId') ?? store.get('selfRegionId'),
   );
   if (!placementData) return;
 
@@ -463,6 +609,8 @@ window.addEventListener('keydown', (e) => {
   const tag = e.target?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
 
+  if (store.get('sceneMode') !== 'region-land') return;
+
   if (e.key.toLowerCase() === 'b') {
     const next = !store.get('sandboxBuildMode');
     store.set('sandboxBuildMode', next);
@@ -478,45 +626,58 @@ window.addEventListener('keydown', (e) => {
 
   const userId = store.get('user')?.id;
   const isOwner = selected.owner_id === userId;
-  if (!isOwner) return;
+  const nodeType = getNodeType(selected);
 
   if (e.key === 'Delete') {
+    if (!isOwner) return;
     removeSelectedSandboxObject();
     return;
   }
 
   if (e.key.toLowerCase() === 'r') {
+    if (!isOwner) return;
     rotateSelectedSandboxObject();
     return;
   }
 
   if (e.key.toLowerCase() === 'l') {
+    if (!isOwner || nodeType !== 'door') return;
     sendSandboxInteraction('door_lock');
     return;
   }
 
   if (e.key.toLowerCase() === 'u') {
+    if (!isOwner || nodeType !== 'door') return;
     sendSandboxInteraction('door_unlock');
     return;
   }
 
   if (e.key.toLowerCase() === 'p') {
+    if (nodeType !== 'storage') return;
     sendSandboxInteraction('storage_put', { item_id: 'ore', count: 1 });
     return;
   }
 
   if (e.key.toLowerCase() === 't') {
+    if (nodeType !== 'storage') return;
     sendSandboxInteraction('storage_take', { item_id: 'ore', count: 1 });
     return;
   }
 
   if (e.key.toLowerCase() === 'c') {
+    if (nodeType !== 'crafting') return;
     sendSandboxInteraction('craft_start', { recipe: 'iron_ingot', duration_ms: 15000 });
     return;
   }
 
   if (e.key.toLowerCase() === 'g') {
+    if (nodeType !== 'crafting') return;
     sendSandboxInteraction('craft_collect');
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'h') {
+    sendRepairInteraction();
   }
 });
 

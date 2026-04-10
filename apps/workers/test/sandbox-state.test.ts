@@ -3,6 +3,7 @@ import type { RegionWorldObject } from '@veltara/shared';
 import {
   applyObjectInteraction,
   canEditOrRemoveObject,
+  canRepair,
   initializeObjectState,
   normalizeObjectSnapshot,
 } from '../src/sandbox-state.js';
@@ -29,6 +30,21 @@ describe('sandbox-state permissions', () => {
     const object = makeObject({ owner_id: 'owner-1' });
     expect(canEditOrRemoveObject(object, 'owner-1')).toBe(true);
     expect(canEditOrRemoveObject(object, 'other-user')).toBe(false);
+  });
+
+  it('allows builder role to repair but not edit/remove', () => {
+    const object = initializeObjectState(
+      makeObject({
+        owner_id: 'owner-1',
+        metadata: {
+          permissions: { 'builder-1': 'builder' },
+          health: { current: 70, max: 100 },
+        },
+      }),
+    );
+
+    expect(canEditOrRemoveObject(object, 'builder-1')).toBe(false);
+    expect(canRepair(object, 'builder-1')).toBe(true);
   });
 });
 
@@ -95,6 +111,29 @@ describe('sandbox-state crafting interactions', () => {
     expect(collected.ok).toBe(true);
     const queue = (collected.object?.metadata?.state as { queue: Array<{ status: string }> }).queue;
     expect(queue).toHaveLength(0);
+  });
+});
+
+describe('sandbox-state repair interactions', () => {
+  it('repairs object health for owner', () => {
+    const object = initializeObjectState(makeObject({ metadata: { health: { current: 80, max: 100 } } }));
+    const result = applyObjectInteraction(object, 'owner-1', 'repair', { amount: 15 }, 100);
+
+    expect(result.ok).toBe(true);
+    expect(result.object?.metadata?.health).toEqual({ current: 95, max: 100 });
+  });
+
+  it('denies repair when actor has no permissions', () => {
+    const object = initializeObjectState(
+      makeObject({
+        owner_id: 'owner-1',
+        metadata: { permissions: { 'viewer-1': 'viewer' }, health: { current: 70, max: 100 } },
+      }),
+    );
+    const result = applyObjectInteraction(object, 'viewer-1', 'repair', undefined, 100);
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('OBJECT_PERMISSION_DENIED');
   });
 });
 

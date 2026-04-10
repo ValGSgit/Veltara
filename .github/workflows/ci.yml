@@ -31,10 +31,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm typecheck
+        run: pnpm --recursive --if-present typecheck
 
       - name: Test
-        run: pnpm test
+        run: pnpm --filter @veltara/workers test
 
-      - name: Build
-        run: pnpm build
+      - name: Build shared + sdk
+        run: pnpm --filter @veltara/shared build && pnpm --filter @veltara/sdk build
+
+      - name: Build web
+        run: pnpm --filter @veltara/web build
+
+      - name: Build portal
+        run: pnpm --filter @veltara/portal build

@@ -37,6 +37,23 @@ const selectedTitle = computed(() => {
   if (!props.selectedObject) return 'Nothing selected';
   return `${props.selectedObject.kind} · ${props.selectedObject.material}`;
 });
+
+const selectedNodeType = computed(() => {
+  const object = props.selectedObject;
+  if (!object) return null;
+  const explicit = object.metadata?.node_type;
+  if (explicit === 'door' || explicit === 'storage' || explicit === 'crafting') return explicit;
+  if (object.kind === 'beacon') return 'door';
+  if (object.kind === 'platform') return 'crafting';
+  return 'storage';
+});
+
+const healthLabel = computed(() => {
+  const health = props.selectedObject?.metadata?.health;
+  const current = Number(health?.current ?? 100);
+  const max = Number(health?.max ?? 100);
+  return `${Math.max(0, Math.floor(current))}/${Math.max(1, Math.floor(max))}`;
+});
 </script>
 
 <template>
@@ -67,6 +84,9 @@ const selectedTitle = computed(() => {
         <p v-if="selectedObject" class="sandbox-selection__meta">
           ID: {{ selectedObject.id.slice(0, 8) }} · owner {{ selectedObject.owner_id.slice(0, 6) }}
         </p>
+        <p v-if="selectedObject" class="sandbox-selection__meta">
+          Health: {{ healthLabel }}
+        </p>
       </section>
 
       <div class="sandbox-overlay__actions">
@@ -75,22 +95,68 @@ const selectedTitle = computed(() => {
           variant="primary"
           @click="emit('toggle-build')"
         />
-        <SandboxActionButton
-          label="Use"
-          :disabled="!selectedObject"
-          @click="emit('action', 'use')"
-        />
-        <SandboxActionButton
-          label="Rotate"
-          :disabled="!selectedObject || !canEditSelection"
-          @click="emit('action', 'rotate')"
-        />
-        <SandboxActionButton
-          label="Remove"
-          variant="danger"
-          :disabled="!selectedObject || !canEditSelection"
-          @click="emit('action', 'remove')"
-        />
+        
+        <template v-if="selectedObject">
+          <SandboxActionButton
+            label="Use"
+            @click="emit('action', 'use')"
+          />
+
+          <!-- Door Controls -->
+          <template v-if="selectedNodeType === 'door'">
+            <SandboxActionButton
+              label="Lock"
+              @click="emit('action', 'lock')"
+              :disabled="!canEditSelection"
+            />
+            <SandboxActionButton
+              label="Unlock"
+              @click="emit('action', 'unlock')"
+              :disabled="!canEditSelection"
+            />
+          </template>
+          
+          <!-- Storage Controls -->
+          <template v-if="selectedNodeType === 'storage'">
+            <SandboxActionButton
+              label="Put Item"
+              @click="emit('action', 'put')"
+            />
+            <SandboxActionButton
+              label="Take Item"
+              @click="emit('action', 'take')"
+            />
+          </template>
+
+          <!-- Crafter Controls -->
+          <template v-if="selectedNodeType === 'crafting'">
+            <SandboxActionButton
+              label="Start Crafting"
+              @click="emit('action', 'start-craft')"
+            />
+            <SandboxActionButton
+              label="Collect"
+              @click="emit('action', 'collect-craft')"
+            />
+          </template>
+
+          <SandboxActionButton
+            label="Repair"
+            @click="emit('action', 'repair')"
+          />
+
+          <SandboxActionButton
+            label="Rotate"
+            :disabled="!canEditSelection"
+            @click="emit('action', 'rotate')"
+          />
+          <SandboxActionButton
+            label="Remove"
+            variant="danger"
+            :disabled="!canEditSelection"
+            @click="emit('action', 'remove')"
+          />
+        </template>
       </div>
 
       <div class="sandbox-overlay__hotkeys">
@@ -100,6 +166,7 @@ const selectedTitle = computed(() => {
         <SandboxHotkeyPill key-name="L / U" label="Door lock/unlock" />
         <SandboxHotkeyPill key-name="P / T" label="Storage put/take" />
         <SandboxHotkeyPill key-name="C / G" label="Craft start/collect" />
+        <SandboxHotkeyPill key-name="H" label="Repair" />
       </div>
     </aside>
   </Transition>

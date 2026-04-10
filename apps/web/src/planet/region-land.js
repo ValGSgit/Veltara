@@ -46,12 +46,28 @@ export class RegionLandScene {
 
   buildScene() {
     const groundGeometry = new THREE.CircleGeometry(30, 64);
+    
+    // Add varying height for natural terrain topography
+    const posAttribute = groundGeometry.attributes.position;
+    for (let i = 0; i < posAttribute.count; i++) {
+      const vx = posAttribute.getX(i);
+      const vy = posAttribute.getY(i);
+      if (Math.sqrt(vx*vx + vy*vy) > 0.01) { // Skip origin so center is flat
+        const distForm = Math.max(0, (Math.sqrt(vx*vx + vy*vy) - 10) / 20); // Scale 0-1 from radius 10 to 30
+        const vz = (Math.sin(vx * 0.4) + Math.cos(vy * 0.5)) * 0.4 * distForm 
+                 + (Math.sin(vx * 0.15 + vy * 0.25)) * 0.6 * distForm;
+        posAttribute.setZ(i, vz);
+      }
+    }
+    groundGeometry.computeVertexNormals();
+
     const groundMaterial = new THREE.MeshStandardMaterial({
       color: 0x2a3754,
       roughness: 0.95,
       metalness: 0.05,
       emissive: 0x050812,
       emissiveIntensity: 0.2,
+      flatShading: true
     });
     this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
     this.ground.rotation.x = -Math.PI / 2;
@@ -60,6 +76,19 @@ export class RegionLandScene {
     this.root.add(this.ground);
 
     const innerGroundGeometry = new THREE.CircleGeometry(20, 56);
+    
+    // Inner ground subtle wavy edges
+    const innerPos = innerGroundGeometry.attributes.position;
+    for (let i = 0; i < innerPos.count; i++) {
+      const vx = innerPos.getX(i);
+      const vy = innerPos.getY(i);
+      if (Math.sqrt(vx*vx + vy*vy) > 0.01) {
+        const vz = (Math.sin(vx * 0.5) * Math.cos(vy * 0.5)) * 0.1;
+        innerPos.setZ(i, vz);
+      }
+    }
+    innerGroundGeometry.computeVertexNormals();
+
     const innerGroundMaterial = new THREE.MeshStandardMaterial({
       color: 0x465e87,
       roughness: 0.82,
@@ -226,7 +255,10 @@ export class RegionLandScene {
 
     this.crystalField?.children.forEach((child) => {
       if (!(child instanceof THREE.Mesh)) return;
-      child.position.y = child.userData.baseY + Math.sin(elapsed * 1.2 + child.userData.waveOffset) * 0.06;
+      child.position.y = child.userData.baseY + Math.sin(elapsed * 1.2 + child.userData.waveOffset) * 0.08;
+      child.rotation.y += 0.005 + (child.userData.waveOffset * 0.001);
+      child.rotation.x = Math.sin(elapsed * 0.5 + child.userData.waveOffset) * 0.15;
+      child.rotation.z = Math.cos(elapsed * 0.4 + child.userData.waveOffset) * 0.15;
     });
 
     this.lightColumns?.children.forEach((child, index) => {

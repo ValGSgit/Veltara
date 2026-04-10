@@ -24,6 +24,17 @@ interface CraftingState {
   queue: CraftingJob[];
 }
 
+interface ObjectHealthState {
+  current: number;
+  max: number;
+}
+
+type ObjectPermissionRole = 'viewer' | 'builder';
+
+interface ObjectPermissionsState {
+  [actorId: string]: ObjectPermissionRole;
+}
+
 export interface InteractionApplyResult {
   ok: boolean;
   code?: string;
@@ -65,6 +76,27 @@ function ensureCraftingState(object: RegionWorldObject): CraftingState {
   };
 }
 
+function ensureHealthState(object: RegionWorldObject): ObjectHealthState {
+  const state = object.metadata?.health as Partial<ObjectHealthState> | undefined;
+  const max = Math.max(1, Math.floor(Number(state?.max ?? 100)));
+  const current = Math.max(0, Math.min(max, Math.floor(Number(state?.current ?? max))));
+  return { current, max };
+}
+
+function ensurePermissionsState(object: RegionWorldObject): ObjectPermissionsState {
+  const state = object.metadata?.permissions;
+  if (!state || typeof state !== 'object') return {};
+  const entries = Object.entries(state as Record<string, unknown>)
+    .filter(([, role]) => role === 'viewer' || role === 'builder') as Array<[string, ObjectPermissionRole]>;
+  return Object.fromEntries(entries);
+}
+
+function canRepairObject(object: RegionWorldObject, actorId: string): boolean {
+  if (object.owner_id === actorId) return true;
+  const permissions = ensurePermissionsState(object);
+  return permissions[actorId] === 'builder';
+}
+
 export function initializeObjectState(object: RegionWorldObject): RegionWorldObject {
   const nodeType = getNodeType(object);
 
@@ -83,12 +115,19 @@ export function initializeObjectState(object: RegionWorldObject): RegionWorldObj
       ...(object.metadata ?? {}),
       node_type: nodeType,
       state: initialState,
+      health: ensureHealthState(object),
+      permissions: ensurePermissionsState(object),
     },
   };
 }
 
 export function canEditOrRemoveObject(object: RegionWorldObject, actorId: string): boolean {
   return object.owner_id === actorId;
+}
+
+export function canRepair(object: RegionWorldObject, actorId: string): boolean {
+  const withState = initializeObjectState(object);
+  return canRepairObject(withState, actorId);
 }
 
 export function applyObjectInteraction(
@@ -103,6 +142,34 @@ export function applyObjectInteraction(
 
   if (!withState.interactive) {
     return { ok: false, code: 'OBJECT_NOT_INTERACTIVE', message: 'This object is not interactive.' };
+  }
+
+  if (interactionType === 'repair') {
+    const health = ensureHealthState(withState);
+    if (health.current >= health.max) {
+      return { ok: false, code: 'OBJECT_FULL_HEALTH', message: 'Object is already fully repaired.' };
+    }
+
+    if (!canRepairObject(withState, actorId)) {
+      return { ok: false, code: 'OBJECT_PERMISSION_DENIED', message: 'You do not have repair permissions.' };
+    }
+
+    const repairAmount = Math.max(1, Math.floor(Number(payload?.amount ?? 10)));
+    const nextHealth = {
+      current: Math.min(health.max, health.current + repairAmount),
+      max: health.max,
+    };
+
+    const updated = {
+      ...withState,
+      metadata: {
+        ...(withState.metadata ?? {}),
+        health: nextHealth,
+      },
+      updated_at: now,
+    };
+
+    return { ok: true, object: updated, data: { health: nextHealth, repaired: true } };
   }
 
   if (nodeType === 'door') {
