@@ -120,3 +120,8 @@ pnpm docker:clean:hard
 	```bash
 	docker compose run --rm deps
 	```
+- If that still fails, reset volumes and rebuild:
+	```bash
+	docker compose down -v
+	docker compose up --build
+	```

@@ -63,6 +63,9 @@ Notes:
 - The compose stack includes a deps bootstrap service that installs workspace dependencies into compose volumes before web/portal/workers start.
 - If dependencies get out of sync after package changes, rerun:
 	- docker compose run --rm deps
+- After dependency volume layout changes, do a one-time reset:
+	- docker compose down -v
+	- docker compose up --build
 
 ## Trusted Local HTTPS (mkcert)
 

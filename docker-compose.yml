@@ -7,11 +7,18 @@ services:
     working_dir: /workspace
     env_file:
       - .env
+    environment:
+      CI: "1"
     command: >
-      pnpm install --no-frozen-lockfile
+      pnpm install --no-frozen-lockfile --force
     volumes:
       - ./:/workspace
       - veltara_node_modules:/workspace/node_modules
+      - veltara_web_node_modules:/workspace/apps/web/node_modules
+      - veltara_portal_node_modules:/workspace/apps/portal/node_modules
+      - veltara_workers_node_modules:/workspace/apps/workers/node_modules
+      - veltara_sdk_node_modules:/workspace/apps/sdk/node_modules
+      - veltara_shared_node_modules:/workspace/packages/shared/node_modules
       - veltara_pnpm_store:/pnpm/store
 
   workers:
@@ -24,6 +31,7 @@ services:
       - .env
     environment:
       NODE_ENV: development
+      CI: "1"
     command: >
       pnpm --filter @veltara/workers dev -- --ip 0.0.0.0 --port 8787 --local-protocol https
     ports:
@@ -34,6 +42,7 @@ services:
     volumes:
       - ./:/workspace
       - veltara_node_modules:/workspace/node_modules
+      - veltara_workers_node_modules:/workspace/apps/workers/node_modules
       - veltara_pnpm_store:/pnpm/store
 
   web:
@@ -47,6 +56,7 @@ services:
     environment:
       NODE_ENV: development
       WORKERS_PROXY_TARGET: https://workers:8787
+      CI: "1"
     command: >
       pnpm --filter @veltara/web dev -- --host 0.0.0.0 --port 5173
     ports:
@@ -59,6 +69,7 @@ services:
     volumes:
       - ./:/workspace
       - veltara_node_modules:/workspace/node_modules
+      - veltara_web_node_modules:/workspace/apps/web/node_modules
       - veltara_pnpm_store:/pnpm/store
 
   portal:
@@ -72,6 +83,7 @@ services:
     environment:
       NODE_ENV: development
       VITE_API_BASE_URL: https://localhost:8787
+      CI: "1"
     command: >
       pnpm --filter @veltara/portal dev -- --host 0.0.0.0 --port 5174
     ports:
@@ -84,8 +96,14 @@ services:
     volumes:
       - ./:/workspace
       - veltara_node_modules:/workspace/node_modules
+      - veltara_portal_node_modules:/workspace/apps/portal/node_modules
       - veltara_pnpm_store:/pnpm/store
 
 volumes:
   veltara_node_modules:
+  veltara_web_node_modules:
+  veltara_portal_node_modules:
+  veltara_workers_node_modules:
+  veltara_sdk_node_modules:
+  veltara_shared_node_modules:
   veltara_pnpm_store:
