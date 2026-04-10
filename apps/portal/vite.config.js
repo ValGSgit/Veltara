@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function getHttpsConfig() {
+  if (String(process.env.DEV_HTTPS ?? '').toLowerCase() === 'false') {
+    return false;
+  }
+
   const certPath = process.env.DEV_HTTPS_CERT
     ?? path.resolve(__dirname, '../../certs/localhost.pem');
   const keyPath = process.env.DEV_HTTPS_KEY

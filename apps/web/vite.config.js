@@ -7,6 +7,10 @@ const proxyTarget = process.env.WORKERS_PROXY_TARGET ?? 'https://localhost:8787'
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function getHttpsConfig() {
+  if (String(process.env.DEV_HTTPS ?? '').toLowerCase() === 'false') {
+    return false;
+  }
+
   const certPath = process.env.DEV_HTTPS_CERT
     ?? path.resolve(__dirname, '../../certs/localhost.pem');
   const keyPath = process.env.DEV_HTTPS_KEY

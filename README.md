@@ -88,11 +88,30 @@ Both Vite apps automatically use these certs when present.
 
 ## Scripts
 
-- pnpm dev: run web + workers + portal concurrently.
-- pnpm build: build shared, sdk, web, and portal packages.
-- pnpm typecheck: recursive type checks.
-- pnpm test: recursive test execution.
-- pnpm clean: remove common build artifacts.
+### Using pnpm directly
+- `pnpm dev`: run web + workers + portal concurrently.
+- `pnpm build`: build shared, sdk, web, and portal packages.
+- `pnpm typecheck`: recursive type checks.
+- `pnpm test`: recursive test execution.
+- `pnpm clean`: remove common build artifacts.
+
+### Using Makefile (Git Bash / Unix-like)
+For a more familiar Unix-style development workflow, use the included Makefile:
+
+```bash
+make help        # Show all available targets
+make dev         # Start dev server
+make build       # Build all packages
+make test        # Run tests
+make typecheck   # Type check
+make docker-up   # Start Docker stack
+make docker-down # Stop Docker stack
+```
+
+Short aliases available: `make d`, `make b`, `make t`, `make tc`, etc.
+
+**Requirements**: GNU Make or equivalent (`make` command available in your shell).
+On Windows with Git Bash, this is available by default.
 
 ## Core Documentation
 
