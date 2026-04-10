@@ -19,12 +19,15 @@ import { Errors, jsonResponse } from './utils/errors.js';
 import { requireAuth } from './middleware/auth.js';
 import { createSupabaseClient } from './utils/supabase.js';
 import { verifyJwt } from './utils/jwt.js';
+import authWorker from './auth-worker.js';
+import apiWorker from './api-worker.js';
 export { RegionRoom } from './region-room.js';
 
 interface Env {
   REGION_ROOM: DurableObjectNamespace;
   KV_WORLD: KVNamespace;
   KV_SESSIONS: KVNamespace;
+  KV_API_KEYS: KVNamespace;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
   JWT_SECRET: string;
@@ -42,6 +45,11 @@ export default {
     try {
       let response: Response;
 
+      if (path.startsWith('/api/auth/')) {
+        response = await authWorker.fetch(request, env as Parameters<typeof authWorker.fetch>[1]);
+      } else if (path.startsWith('/api/developer/') || path.startsWith('/v1/')) {
+        response = await apiWorker.fetch(request, env as Parameters<typeof apiWorker.fetch>[1]);
+      } else
       if (path === '/api/regions' && request.method === 'GET') {
         response = await handleGetRegions(env);
       } else if (path === '/api/world-state' && request.method === 'GET') {

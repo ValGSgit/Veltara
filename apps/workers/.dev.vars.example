@@ -16,3 +16,11 @@ STRIPE_PRICE_STUDIO=price_local_studio
 # Dev-only feature toggles
 # Enables mocked Stripe checkout/portal/webhook flows so billing can be tested without real Stripe secrets.
 DEV_FAKE_STRIPE=true
+
+# Optional local bootstrap login for portal/web auth
+# When enabled, login with DEV_BOOTSTRAP_EMAIL / DEV_BOOTSTRAP_PASSWORD always works
+# and creates the account automatically on first successful login.
+DEV_BOOTSTRAP_ACCOUNT=true
+DEV_BOOTSTRAP_USERNAME=dev
+DEV_BOOTSTRAP_EMAIL=dev@veltara.local
+DEV_BOOTSTRAP_PASSWORD=devpassword123!

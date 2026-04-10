@@ -66,6 +66,7 @@ export const store = createStore({
   activePanel: null, // 'profile' | 'social' | 'store' | 'settings' | null
   authModal: null, // 'login' | 'register' | null
   showOnboarding: false,
+  modelLabOpen: false,
 
   // Connection
   wsConnected: false,

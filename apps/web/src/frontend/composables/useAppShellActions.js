@@ -84,6 +84,14 @@ export function useAppShellActions(shellState) {
     store.set('currentPage', 'planet');
   }
 
+  function openModelLab() {
+    store.set('modelLabOpen', true);
+  }
+
+  function closeModelLab() {
+    store.set('modelLabOpen', false);
+  }
+
   function selectPlanet(planetId) {
     dispatchAppEvent('planet-select', { planetId });
   }
@@ -105,6 +113,8 @@ export function useAppShellActions(shellState) {
     updateSandboxCreateSettings,
     triggerSandboxAction,
     goPlanet,
+    openModelLab,
+    closeModelLab,
     selectPlanet,
   };
 }

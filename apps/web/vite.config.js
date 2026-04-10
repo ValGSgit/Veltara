@@ -28,6 +28,11 @@ function getHttpsConfig() {
 }
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      vue: 'vue/dist/vue.esm-bundler.js',
+    },
+  },
   plugins: [vue()],
   server: {
     port: 5173,

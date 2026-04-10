@@ -19,6 +19,10 @@ interface Env {
   KV_SESSIONS: KVNamespace;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
+  DEV_BOOTSTRAP_ACCOUNT?: string;
+  DEV_BOOTSTRAP_USERNAME?: string;
+  DEV_BOOTSTRAP_EMAIL?: string;
+  DEV_BOOTSTRAP_PASSWORD?: string;
 }
 
 const JWT_EXPIRY_SEC = 3600;         // 1 hour
@@ -29,12 +33,66 @@ const REFRESH_EXPIRY_SEC = 2592000;  // 30 days
 const AUTH_RATE_WINDOW_SEC = 900;    // 15-minute window
 const AUTH_MAX_ATTEMPTS = 10;        // max attempts per IP per window
 
+function isEnabled(value?: string): boolean {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+}
+
 async function checkAuthRateLimit(ip: string, kv: KVNamespace): Promise<boolean> {
   const key = `auth_rl:${ip}`;
   const current = parseInt(await kv.get(key) ?? '0');
   if (current >= AUTH_MAX_ATTEMPTS) return false;
   await kv.put(key, String(current + 1), { expirationTtl: AUTH_RATE_WINDOW_SEC });
   return true;
+}
+
+function getDevBootstrapConfig(env: Env) {
+  return {
+    enabled: isEnabled(env.DEV_BOOTSTRAP_ACCOUNT),
+    username: String(env.DEV_BOOTSTRAP_USERNAME ?? 'dev'),
+    email: String(env.DEV_BOOTSTRAP_EMAIL ?? 'dev@veltara.local').toLowerCase(),
+    password: String(env.DEV_BOOTSTRAP_PASSWORD ?? 'devpassword123!'),
+  };
+}
+
+async function getOrCreateDevBootstrapUser(env: Env) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+  }
+  const db = createSupabaseClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+  const config = getDevBootstrapConfig(env);
+
+  const { data: existingByEmail } = await db
+    .from('users')
+    .select('id, username, email, password_hash, plan_tier, avatar_url, bio, credits, muted_until')
+    .eq('email', config.email)
+    .maybeSingle();
+
+  if (existingByEmail) {
+    return existingByEmail as {
+      id: string; username: string; email: string; password_hash: string;
+      plan_tier: 'free' | 'pro' | 'studio'; muted_until: string | null;
+    };
+  }
+
+  const passwordHash = await hashPassword(config.password);
+  const { data: created, error } = await db
+    .from('users')
+    .insert({
+      username: config.username,
+      email: config.email,
+      password_hash: passwordHash,
+      plan_tier: 'free',
+      credits: 0,
+    })
+    .select('id, username, email, password_hash, plan_tier, avatar_url, bio, credits, muted_until')
+    .single();
+
+  if (error || !created) return null;
+  return created as {
+    id: string; username: string; email: string; password_hash: string;
+    plan_tier: 'free' | 'pro' | 'studio'; muted_until: string | null;
+  };
 }
 
 // ─── Password Hashing via PBKDF2 ─────────────────────────────────────────────
@@ -134,6 +192,9 @@ export default {
 // ─── Register ─────────────────────────────────────────────────────────────────
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) {
+    return Errors.internalError('Auth is not configured: SUPABASE_URL/SUPABASE_SERVICE_KEY missing');
+  }
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   if (!(await checkAuthRateLimit(ip, env.KV_SESSIONS))) {
     return Errors.tooManyRequests('Too many auth attempts. Try again in 15 minutes.');
@@ -204,6 +265,9 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 async function handleLogin(request: Request, env: Env): Promise<Response> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) {
+    return Errors.internalError('Auth is not configured: SUPABASE_URL/SUPABASE_SERVICE_KEY missing');
+  }
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   if (!(await checkAuthRateLimit(ip, env.KV_SESSIONS))) {
     return Errors.tooManyRequests('Too many login attempts. Try again in 15 minutes.');
@@ -214,12 +278,40 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
   if (!parsed.success) return Errors.badRequest('Invalid email or password format');
 
   const { email, password } = parsed.data;
+  const normalizedEmail = email.toLowerCase();
+  const devBootstrap = getDevBootstrapConfig(env);
+
+  if (
+    devBootstrap.enabled
+    && normalizedEmail === devBootstrap.email
+    && password === devBootstrap.password
+  ) {
+    const devUser = await getOrCreateDevBootstrapUser(env);
+    if (!devUser) return Errors.internalError('Failed to bootstrap dev account');
+
+    const accessToken = await signJwt(
+      { sub: devUser.id, username: devUser.username, email: devUser.email, plan_tier: devUser.plan_tier },
+      env.JWT_SECRET,
+      JWT_EXPIRY_SEC,
+    );
+
+    const refreshToken = generateToken(32);
+    const refreshHash = await sha256Hex(refreshToken);
+    await env.KV_SESSIONS.put(`refresh:${refreshHash}`, JSON.stringify({
+      user_id: devUser.id,
+      created_at: Date.now(),
+    }), { expirationTtl: REFRESH_EXPIRY_SEC });
+
+    const { password_hash: _devHash, ...safeDevUser } = devUser;
+    return jsonResponse({ access_token: accessToken, refresh_token: refreshToken, user: safeDevUser });
+  }
+
   const db = createSupabaseClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
 
   const { data: user } = await db
     .from('users')
     .select('id, username, email, password_hash, plan_tier, avatar_url, bio, credits, muted_until')
-    .eq('email', email)
+    .eq('email', normalizedEmail)
     .single();
 
   if (!user) return Errors.unauthorized();
@@ -254,6 +346,9 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
 // ─── Refresh ──────────────────────────────────────────────────────────────────
 
 async function handleRefresh(request: Request, env: Env): Promise<Response> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) {
+    return Errors.internalError('Auth is not configured: SUPABASE_URL/SUPABASE_SERVICE_KEY missing');
+  }
   const body = await request.json().catch(() => null);
   const parsed = RefreshSchema.safeParse(body);
   if (!parsed.success) return Errors.badRequest('refresh_token required');
@@ -307,6 +402,9 @@ async function handleLogout(request: Request, env: Env): Promise<Response> {
 // ─── Me ───────────────────────────────────────────────────────────────────────
 
 async function handleMe(request: Request, env: Env): Promise<Response> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) {
+    return Errors.internalError('Auth is not configured: SUPABASE_URL/SUPABASE_SERVICE_KEY missing');
+  }
   const result = await requireAuth(request, env);
   if (result instanceof Response) return result;
 

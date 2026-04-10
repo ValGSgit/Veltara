@@ -238,29 +238,60 @@ function showAuthModal() {
   modals.innerHTML = `
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div class="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
-        <h2 class="text-lg font-bold text-white">Sign in to Portal</h2>
+        <h2 id="pl-title" class="text-lg font-bold text-white">Sign in to Portal</h2>
         <form id="portal-login" class="space-y-3">
+          <input type="text" id="pl-username" placeholder="Username" class="portal-input w-full hidden" />
           <input type="email" id="pl-email" placeholder="Email" class="portal-input w-full" required />
           <input type="password" id="pl-password" placeholder="Password" class="portal-input w-full" required />
-          <button type="submit" class="portal-btn w-full">Sign In</button>
+          <button type="submit" id="pl-submit" class="portal-btn w-full">Sign In</button>
         </form>
+        <button id="pl-toggle-mode" type="button" class="w-full px-3 py-2 text-xs border border-gray-700 text-gray-300 rounded-lg hover:text-white hover:border-gray-500 transition-colors">
+          Need an account? Create one
+        </button>
         <div id="pl-error" class="text-xs text-red-400 hidden"></div>
       </div>
     </div>
   `;
 
+  let isRegisterMode = false;
+  const titleEl = document.getElementById('pl-title');
+  const usernameEl = document.getElementById('pl-username');
+  const submitEl = document.getElementById('pl-submit');
+  const toggleEl = document.getElementById('pl-toggle-mode');
+  const errorEl = document.getElementById('pl-error');
+
+  function setAuthMode(registerMode) {
+    isRegisterMode = registerMode;
+    titleEl.textContent = registerMode ? 'Create Portal Account' : 'Sign in to Portal';
+    submitEl.textContent = registerMode ? 'Create Account' : 'Sign In';
+    toggleEl.textContent = registerMode ? 'Already have an account? Sign in' : 'Need an account? Create one';
+    usernameEl.classList.toggle('hidden', !registerMode);
+    usernameEl.required = registerMode;
+    errorEl.classList.add('hidden');
+    errorEl.textContent = '';
+  }
+
+  toggleEl.addEventListener('click', () => setAuthMode(!isRegisterMode));
+
   document.getElementById('portal-login').addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
-      await portalApi.login(
-        document.getElementById('pl-email').value,
-        document.getElementById('pl-password').value,
-      );
+      const email = document.getElementById('pl-email').value;
+      const password = document.getElementById('pl-password').value;
+      if (isRegisterMode) {
+        const username = usernameEl.value.trim();
+        if (!username) {
+          throw new Error('Username is required.');
+        }
+        await portalApi.register(username, email, password);
+      } else {
+        await portalApi.login(email, password);
+      }
       modals.innerHTML = '';
       window.location.hash = '/dashboard';
     } catch (err) {
-      document.getElementById('pl-error').textContent = err.message;
-      document.getElementById('pl-error').classList.remove('hidden');
+      errorEl.textContent = err.message;
+      errorEl.classList.remove('hidden');
     }
   });
 }

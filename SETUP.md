@@ -34,7 +34,11 @@ cp .env.dev.example .env
 cp apps/workers/.dev.vars.example apps/workers/.dev.vars
 ```
 2. Keep `DEV_FAKE_STRIPE=true` in `apps/workers/.dev.vars`.
-3. Start stack:
+3. Optional: keep `DEV_BOOTSTRAP_ACCOUNT=true` in `apps/workers/.dev.vars` to enable a default local login:
+	- Email: `dev@veltara.local`
+	- Password: `devpassword123!`
+	- The user is auto-created on first successful login.
+4. Start stack:
 ```bash
 pnpm dev
 ```

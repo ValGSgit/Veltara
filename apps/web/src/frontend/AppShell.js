@@ -9,6 +9,7 @@ import AuthModalView from './components/AuthModalView.vue';
 import OnboardingModalView from './components/OnboardingModalView.vue';
 import PanelDrawerView from './components/PanelDrawerView.vue';
 import SandboxOverlay from './components/sandbox/SandboxOverlay.vue';
+import ModelLabModal from './components/ModelLabModal.vue';
 import { useAppShellActions } from './composables/useAppShellActions.js';
 import {
   formatClock,
@@ -42,6 +43,7 @@ export function mountAppShell() {
       OnboardingModalView,
       PanelDrawerView,
       SandboxOverlay,
+      ModelLabModal,
     },
     setup() {
       const currentPage = computed(() => shellState.currentPage ?? 'home');
@@ -163,6 +165,7 @@ export function mountAppShell() {
           <button class="global-sidebar__btn" @click="openPanel('store')">Store</button>
           <button class="global-sidebar__btn" @click="openPanel('profile')">Profile</button>
           <button class="global-sidebar__btn" @click="openPanel('settings')">Settings</button>
+          <button class="global-sidebar__btn" @click="openModelLab">Model Lab</button>
         </aside>
 
         <AppNavBar
@@ -245,6 +248,11 @@ export function mountAppShell() {
           @leave="leaveSandbox"
           @update-create-settings="updateSandboxCreateSettings"
           @action="triggerSandboxAction"
+        />
+
+        <ModelLabModal
+          :open="Boolean(shellState.modelLabOpen)"
+          @close="closeModelLab"
         />
 
         <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land'" role="toolbar" aria-label="Planet switcher">
