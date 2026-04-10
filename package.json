@@ -1,0 +1,22 @@
+{
+  "name": "veltara",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Veltara — full-stack social platform with shared Three.js planet",
+  "scripts": {
+    "dev": "concurrently -k -n web,workers,portal -c blue,green,yellow \"pnpm --filter @veltara/web dev\" \"pnpm --filter @veltara/workers dev\" \"pnpm --filter @veltara/portal dev\"",
+    "build": "pnpm --filter @veltara/shared build && pnpm --filter @veltara/sdk build && pnpm --filter @veltara/web build && pnpm --filter @veltara/portal build",
+    "test": "pnpm --recursive test",
+    "lint": "pnpm --recursive lint",
+    "typecheck": "pnpm --recursive typecheck",
+    "clean": "pnpm --recursive exec rm -rf dist node_modules .wrangler"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

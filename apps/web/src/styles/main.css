@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Variables ─────────────────────────────────────────────────────────── */
+
+:root {
+  --veltara-bg: #0a0a12;
+  --veltara-panel: #13131f;
+  --veltara-border: #1e1e32;
+  --veltara-accent: #6c63ff;
+  --veltara-glow: #4fffb0;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--veltara-bg);
+  color: #e2e2f0;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Canvas ────────────────────────────────────────────────────────────────── */
+
+#planet-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+
+#planet-canvas:active {
+  cursor: grabbing;
+}
+
+/* ─── HUD overlays ──────────────────────────────────────────────────────────── */
+
+#hud, #modals, #toasts {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+
+#hud > * { pointer-events: auto; }
+#modals > * { pointer-events: auto; }
+#toasts {
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 1rem;
+  top: 3rem;
+  pointer-events: none;
+}
+#toasts > * { pointer-events: auto; }
+
+/* ─── Reusable Components ───────────────────────────────────────────────────── */
+
+@layer components {
+  .input-field {
+    @apply bg-veltara-panel border border-veltara-border rounded-lg px-3 py-2
+           text-sm text-white placeholder-veltara-muted
+           focus:outline-none focus:ring-1 focus:ring-veltara-accent focus:border-veltara-accent
+           transition-colors;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 bg-veltara-accent text-white font-medium rounded-lg text-sm
+           hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed
+           transition-colors focus:outline-none focus:ring-2 focus:ring-veltara-accent focus:ring-offset-1;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-transparent border border-veltara-border text-veltara-text font-medium
+           rounded-lg text-sm hover:border-veltara-accent hover:text-white transition-colors
+           focus:outline-none focus:ring-1 focus:ring-veltara-accent;
+  }
+
+  .stat-card {
+    @apply p-2.5 rounded-lg bg-veltara-bg border border-veltara-border text-center;
+
+    .stat-value {
+      @apply text-base font-bold text-white;
+    }
+
+    .stat-label {
+      @apply text-[10px] text-veltara-muted mt-0.5;
+    }
+  }
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(108, 99, 255, 0.3) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(108, 99, 255, 0.3);
+  border-radius: 2px;
+}
+
+/* ─── Reduce Motion ─────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Keep UI transitions but disable planet/shader animations */
+  #planet-canvas {
+    filter: none;
+  }
+}
+
+/* ─── Loading Screen ────────────────────────────────────────────────────────── */
+
+#loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--veltara-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.loading-ring {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(108, 99, 255, 0.2);
+  border-top-color: var(--veltara-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Focus Visible ─────────────────────────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--veltara-accent);
+  outline-offset: 2px;
+}
