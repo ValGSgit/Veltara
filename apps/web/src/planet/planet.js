@@ -159,10 +159,10 @@ export class Planet {
     canvas.width = 256;
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
-    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    gradient.addColorStop(0.2, 'rgba(255, 240, 200, 0.8)');
-    gradient.addColorStop(0.5, 'rgba(255, 180, 100, 0.3)');
+    const gradient = ctx.createRadialGradient(128, 128, 18, 128, 128, 128);
+    gradient.addColorStop(0, 'rgba(255, 248, 224, 0.85)');
+    gradient.addColorStop(0.22, 'rgba(255, 228, 170, 0.55)');
+    gradient.addColorStop(0.55, 'rgba(255, 170, 90, 0.22)');
     gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 256, 256);
@@ -171,20 +171,14 @@ export class Planet {
     
     const sunMat = new THREE.SpriteMaterial({
       map: glowTexture,
-      color: 0xffffee,
+      color: 0xffefc2,
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
     
     const sunMesh = new THREE.Sprite(sunMat);
-    sunMesh.scale.set(40, 40, 1);
-    
-    // Core white sphere
-    const coreGeo = new THREE.SphereGeometry(1.5, 16, 16);
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const coreMesh = new THREE.Mesh(coreGeo, coreMat);
-    sunMesh.add(coreMesh);
+    sunMesh.scale.set(46, 46, 1);
 
     sunMesh.position.copy(this.sunDirection).multiplyScalar(100);
     this.scene.add(sunMesh);

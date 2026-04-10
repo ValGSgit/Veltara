@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const proxyTarget = process.env.WORKERS_PROXY_TARGET ?? 'https://localhost:8787';
 
 function getHttpsConfig() {
   if (String(process.env.DEV_HTTPS ?? '').toLowerCase() === 'false') {
@@ -26,6 +27,23 @@ function getHttpsConfig() {
 }
 
 export default defineConfig({
-  server: { port: 5174, https: getHttpsConfig() },
+  server: {
+    port: 5174,
+    https: getHttpsConfig(),
+    proxy: {
+      '/api': {
+        target: proxyTarget,
+        changeOrigin: true,
+        ws: true,
+        secure: false,
+      },
+      '/v1': {
+        target: proxyTarget,
+        changeOrigin: true,
+        ws: true,
+        secure: false,
+      },
+    },
+  },
   build: { outDir: 'dist', sourcemap: true },
 });

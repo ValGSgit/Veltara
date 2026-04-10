@@ -31,6 +31,7 @@ import {
   initializeObjectState,
   normalizeObjectSnapshot,
 } from './sandbox-state.js';
+import { normalizeAndValidateObjectMetadata } from './object-metadata.js';
 
 interface RegionRoomEnv {
   JWT_SECRET: string;
@@ -63,6 +64,7 @@ interface RegionObjectTransform {
 
 interface RegionObjectUpsertData {
   id?: string;
+  version?: number;
   kind: RegionObjectKind;
   material?: RegionObjectMaterial;
   position: RegionObjectTransform;
@@ -80,6 +82,8 @@ export class RegionRoom implements DurableObject {
   private worldObjects: Map<string, RegionWorldObject> = new Map();
   private regionId: RegionId | null = null;
   private worldState: Record<string, unknown> = {};
+  private worldObjectsDirty = false;
+  private worldObjectsPersistCounter = 0;
   /** Per-user timestamps of recent object_upsert calls for rate limiting */
   private upsertTimestamps: Map<string, number[]> = new Map();
   /** Per-user timestamps of recent chat messages for rate limiting */
@@ -94,7 +98,9 @@ export class RegionRoom implements DurableObject {
       this.chatHistory = (await this.state.storage.get<ChatEntry[]>('chat_history')) ?? [];
       this.regionId = (await this.state.storage.get<RegionId>('region_id')) ?? null;
       const storedObjects = (await this.state.storage.get<RegionWorldObject[]>('region_objects')) ?? [];
-      this.worldObjects = new Map(storedObjects.map((obj) => [obj.id, initializeObjectState(obj)]));
+      this.worldObjects = new Map(
+        storedObjects.map((obj) => [obj.id, initializeObjectState({ ...obj, version: obj.version ?? 0 })]),
+      );
     });
   }
 
@@ -267,6 +273,10 @@ export class RegionRoom implements DurableObject {
         payload: { id: player.id, username: player.username },
       }),
     );
+
+    if (this.players.size === 0) {
+      await this.persistWorldObjectsIfNeeded(true);
+    }
   }
 
   private async onMessage(
@@ -393,6 +403,7 @@ export class RegionRoom implements DurableObject {
   private static readonly CHAT_RATE_WINDOW_MS = 10_000; // 10-second window
   private static readonly CHAT_MAX_LENGTH = 500;
   private static readonly PER_USER_OBJECT_LIMIT = 200;
+  private static readonly WORLD_OBJECTS_CHECKPOINT_INTERVAL = 10;
 
   private isSlidingWindowLimited(
     store: Map<string, number[]>,
@@ -496,6 +507,7 @@ export class RegionRoom implements DurableObject {
       id: existing?.id ?? upsertData.id ?? crypto.randomUUID(),
       region_id: this.regionId,
       owner_id: existing?.owner_id ?? player.id,
+      version: Math.max(existing?.version ?? 0, upsertData.version ?? 0) + 1,
       kind: upsertData.kind,
       material: upsertData.material ?? existing?.material ?? 'stone',
       position: this.clampTransform(upsertData.position, existing?.position),
@@ -506,6 +518,19 @@ export class RegionRoom implements DurableObject {
       created_at: existing?.created_at ?? now,
       updated_at: now,
     });
+
+    const metadataResult = normalizeAndValidateObjectMetadata(object.metadata);
+    if (metadataResult.error) {
+      this.send(
+        player.ws,
+        makeServerMessage({
+          type: 'error',
+          payload: metadataResult.error,
+        }),
+      );
+      return;
+    }
+    object.metadata = metadataResult.metadata;
 
     const validated = RegionWorldObjectSchema.safeParse(object);
     if (!validated.success) {
@@ -520,7 +545,7 @@ export class RegionRoom implements DurableObject {
     }
 
     this.worldObjects.set(object.id, validated.data as RegionWorldObject);
-    await this.persistWorldObjects();
+    await this.persistWorldObjectsIfNeeded();
 
     this.broadcast(
       makeServerMessage({
@@ -555,7 +580,7 @@ export class RegionRoom implements DurableObject {
     }
 
     this.worldObjects.delete(objectId);
-    await this.persistWorldObjects();
+    await this.persistWorldObjectsIfNeeded();
 
     this.broadcast(
       makeServerMessage({
@@ -622,7 +647,7 @@ export class RegionRoom implements DurableObject {
     }
 
     this.worldObjects.set(result.object.id, result.object);
-    await this.persistWorldObjects();
+    await this.persistWorldObjectsIfNeeded();
 
     this.broadcast(
       makeServerMessage({
@@ -652,8 +677,26 @@ export class RegionRoom implements DurableObject {
     );
   }
 
-  private async persistWorldObjects(): Promise<void> {
-    await this.state.storage.put('region_objects', normalizeObjectSnapshot(this.getWorldObjectsArray()));
+  private async persistWorldObjectsIfNeeded(force = false): Promise<void> {
+    this.worldObjectsDirty = true;
+    this.worldObjectsPersistCounter += 1;
+    if (!force && this.worldObjectsPersistCounter < RegionRoom.WORLD_OBJECTS_CHECKPOINT_INTERVAL) {
+      return;
+    }
+    await this.persistWorldObjectsSnapshot();
+  }
+
+  private async persistWorldObjectsSnapshot(): Promise<void> {
+    if (!this.worldObjectsDirty) return;
+    const snapshot = normalizeObjectSnapshot(this.getWorldObjectsArray());
+    await this.state.storage.put('region_objects', snapshot);
+    await this.state.storage.put('region_objects_checkpoint', {
+      version: Date.now(),
+      count: snapshot.length,
+      updated_at: Date.now(),
+    });
+    this.worldObjectsDirty = false;
+    this.worldObjectsPersistCounter = 0;
   }
 
   // ─── NPC AI Response ─────────────────────────────────────────────────────────

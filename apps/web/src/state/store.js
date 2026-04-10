@@ -49,10 +49,14 @@ export const store = createStore({
   selfLon: 0,
   sandboxObjects: new Map(),
   sandboxBuildMode: false,
+  sandboxCreateKind: 'block',
+  sandboxCreateMaterial: 'stone',
+  sandboxCreateModelKey: '',
   selectedSandboxObjectId: null,
   sceneMode: 'planet', // 'planet' | 'region-land'
   activeRegionLandId: null,
   currentPage: 'home', // 'home' | 'planet'
+  activePlanetId: 'black-hole', // 'black-hole' | 'veltara' | 'earth-test'
 
   // Chat
   chatMessages: [],

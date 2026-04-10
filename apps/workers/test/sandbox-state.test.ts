@@ -13,6 +13,7 @@ function makeObject(overrides: Partial<RegionWorldObject> = {}): RegionWorldObje
     id: overrides.id ?? 'obj-1',
     region_id: overrides.region_id ?? 'nexus-core',
     owner_id: overrides.owner_id ?? 'owner-1',
+    version: overrides.version ?? 0,
     kind: overrides.kind ?? 'beacon',
     material: overrides.material ?? 'metal',
     position: overrides.position ?? { x: 1, y: 2, z: 3 },

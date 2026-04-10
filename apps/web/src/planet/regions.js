@@ -14,6 +14,10 @@ export class RegionMarkers {
   markers = new Map();
   /** @type {THREE.Raycaster} */
   raycaster = new THREE.Raycaster();
+  /** @type {THREE.Raycaster} */
+  occlusionRaycaster = new THREE.Raycaster();
+  /** @type {THREE.Mesh[]} */
+  planetMeshes = [];
 
   /** @type {HTMLElement} */
   labelEl;
@@ -23,6 +27,9 @@ export class RegionMarkers {
 
   constructor(scene) {
     this.scene = scene;
+    this.planetMeshes = this.scene.children.filter(
+      (obj) => obj instanceof THREE.Mesh && obj.name === 'planet',
+    );
     this._createLabel();
     this._buildMarkers();
   }
@@ -36,16 +43,16 @@ export class RegionMarkers {
 
   _buildMarkers() {
     REGIONS.forEach((region) => {
-      const [x, y, z] = latLonToXYZ(region.lat, region.lon, PLANET_RADIUS + 0.05);
+      const [x, y, z] = latLonToXYZ(region.lat, region.lon, PLANET_RADIUS + 0.075);
       const group = new THREE.Group();
       group.position.set(x, y, z);
-      group.lookAt(0, 0, 0);
-      group.rotateX(Math.PI); // Flip to face outward
+      const outward = group.position.clone().normalize();
+      group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), outward);
 
       const color = new THREE.Color(region.color);
 
       // Outer glow ring
-      const glowGeo = new THREE.RingGeometry(0.06, 0.12, 32);
+      const glowGeo = new THREE.RingGeometry(0.045, 0.095, 32);
       const glowMat = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
@@ -63,17 +70,30 @@ export class RegionMarkers {
       group.add(dotMesh);
 
       // Spike pointing outward
-      const spikeGeo = new THREE.ConeGeometry(0.015, 0.2, 8);
+      const spikeGeo = new THREE.ConeGeometry(0.012, 0.16, 8);
       const spikeMat = new THREE.MeshBasicMaterial({ color });
       const spikeMesh = new THREE.Mesh(spikeGeo, spikeMat);
       spikeMesh.rotation.x = Math.PI;
-      spikeMesh.position.z = -0.12;
+      spikeMesh.position.z = -0.11;
       group.add(spikeMesh);
 
       group.userData = { regionId: region.id, regionName: region.name, color };
       this.markers.set(region.id, group);
       this.scene.add(group);
     });
+  }
+
+  _isOccludedByPlanet(intersect, camera) {
+    // Region marker should not be interactable when it's on the far side of the planet.
+    // We raycast against planet meshes first and compare hit distance.
+    if (!this.planetMeshes.length) return false;
+
+    const origin = camera.position;
+    const direction = intersect.point.clone().sub(origin).normalize();
+    this.occlusionRaycaster.set(origin, direction);
+    const planetHits = this.occlusionRaycaster.intersectObjects(this.planetMeshes, false);
+    if (!planetHits.length) return false;
+    return planetHits[0].distance + 0.001 < intersect.distance;
   }
 
   /**
@@ -117,6 +137,13 @@ export class RegionMarkers {
     const intersects = this.raycaster.intersectObjects(meshes);
 
     if (intersects.length > 0) {
+      if (this._isOccludedByPlanet(intersects[0], camera)) {
+        this.hoveredRegion = null;
+        this.labelEl.classList.add('hidden');
+        document.body.style.cursor = 'default';
+        return null;
+      }
+
       const obj = intersects[0].object;
       const group = obj.parent;
       if (group?.userData?.regionId) {
@@ -156,6 +183,7 @@ export class RegionMarkers {
 
     const intersects = this.raycaster.intersectObjects(meshes);
     if (intersects.length > 0) {
+      if (this._isOccludedByPlanet(intersects[0], camera)) return null;
       return intersects[0].object.parent?.userData?.regionId ?? null;
     }
     return null;

@@ -3,13 +3,13 @@ import { REGIONS } from '@veltara/shared';
 import { store } from '../state/store.js';
 import { handleAuthSuccess as resolveAuthSuccess } from '../ui/auth.js';
 import AppNavBar from './components/AppNavBar.vue';
-import { LobbyView } from './views/LobbyView.js';
-import { HomeView } from './views/HomeView.js';
-import { AuthModalView } from './components/AuthModalView.js';
-import { OnboardingModalView } from './components/OnboardingModalView.js';
-import { PanelDrawerView } from './components/PanelDrawerView.js';
+import LobbyView from './views/LobbyView.vue';
+import HomeView from './views/HomeView.vue';
+import AuthModalView from './components/AuthModalView.vue';
+import OnboardingModalView from './components/OnboardingModalView.vue';
+import PanelDrawerView from './components/PanelDrawerView.vue';
 import SandboxOverlay from './components/sandbox/SandboxOverlay.vue';
-import { dispatchAppEvent } from './utils/events.js';
+import { useAppShellActions } from './composables/useAppShellActions.js';
 import {
   formatClock,
   playerAction,
@@ -109,78 +109,11 @@ export function mountAppShell() {
         return object.owner_id === userId;
       });
 
-      function teleport(regionId) {
-        dispatchAppEvent('teleport-to-region', { regionId });
-      }
-
-      function navigate(page) {
-        store.set('currentPage', page);
-      }
-
-      function openPanel(panel) {
-        store.set('activePanel', panel);
-      }
-
-      function closePanel() {
-        store.set('activePanel', null);
-      }
-
-      function setChatTab(tab) {
-        store.set('chatTab', tab);
-      }
-
-      function sendChat(event) {
-        if (event.key === 'Enter') {
-          const text = event.target.value.trim();
-          if (!text) return;
-          const isGlobal = shellState.chatTab === 'global';
-          dispatchAppEvent('send-chat', { text, is_global: isGlobal });
-          event.target.value = '';
-        }
-      }
-
-      function quickRegion() {
-        const region = REGIONS[Math.floor(Math.random() * REGIONS.length)];
-        if (region) teleport(region.id);
-      }
-
-      function closeAuth() {
-        store.set('authModal', null);
-      }
-
-      function openAuth(mode = 'login') {
-        store.set('authModal', mode);
-      }
-
-      function switchAuthMode(mode) {
-        store.set('authModal', mode);
-      }
-
       function handleAuthSuccess(user) {
         resolveAuthSuccess(user);
       }
 
-      function closeOnboarding() {
-        store.set('showOnboarding', false);
-      }
-
-      function toggleSandboxBuild() {
-        dispatchAppEvent('sandbox-build-mode', {
-          enabled: !shellState.sandboxBuildMode,
-        });
-      }
-
-      function leaveSandbox() {
-        dispatchAppEvent('leave-region-land');
-      }
-
-      function triggerSandboxAction(action) {
-        dispatchAppEvent('sandbox-ui-action', { action });
-      }
-
-      function goPlanet() {
-        store.set('currentPage', 'planet');
-      }
+      const actions = useAppShellActions(shellState);
 
       return {
         shellState,
@@ -200,34 +133,46 @@ export function mountAppShell() {
         sandboxObjectCount,
         selectedSandboxObject,
         canEditSelection,
-        navigate,
-        teleport,
-        openPanel,
-        closePanel,
-        setChatTab,
-        sendChat,
-        quickRegion,
+        ...actions,
         playerName,
         playerAction,
         playerRegion,
-        openAuth,
-        closeAuth,
-        switchAuthMode,
         handleAuthSuccess,
-        closeOnboarding,
-        toggleSandboxBuild,
-        leaveSandbox,
-        triggerSandboxAction,
-        goPlanet,
       };
     },
     template: `
       <div>
+        <aside class="global-sidebar glass-panel">
+          <div class="global-sidebar__title">Navigate</div>
+          <button
+            class="global-sidebar__btn"
+            :class="{ 'is-active': currentPage === 'home' }"
+            @click="navigate('home')"
+          >
+            Home
+          </button>
+          <button
+            class="global-sidebar__btn"
+            :class="{ 'is-active': currentPage === 'planet' }"
+            @click="navigate('planet')"
+          >
+            Planet
+          </button>
+          <div class="global-sidebar__divider"></div>
+          <button class="global-sidebar__btn" @click="openPanel('social')">Social</button>
+          <button class="global-sidebar__btn" @click="openPanel('store')">Store</button>
+          <button class="global-sidebar__btn" @click="openPanel('profile')">Profile</button>
+          <button class="global-sidebar__btn" @click="openPanel('settings')">Settings</button>
+        </aside>
+
         <AppNavBar
           :current-page="currentPage"
           :is-authenticated="shellState.isAuthenticated"
           :username="shellState.user?.username || ''"
           :ws-connected="shellState.wsConnected"
+          :scene-mode="shellState.sceneMode"
+          :sandbox-build-mode="shellState.sandboxBuildMode"
+          :active-region-name="activeRegionLand.name"
           @navigate="navigate"
           @open-panel="openPanel"
           @auth="openAuth"
@@ -242,6 +187,7 @@ export function mountAppShell() {
           :active-events="activeEvents"
           :quick-region="quickRegion"
           :open-panel="openPanel"
+          :is-authenticated="shellState.isAuthenticated"
           :go-planet="goPlanet"
         />
 
@@ -291,11 +237,39 @@ export function mountAppShell() {
           :object-count="sandboxObjectCount"
           :selected-object="selectedSandboxObject"
           :sandbox-build-mode="shellState.sandboxBuildMode"
+          :create-kind="shellState.sandboxCreateKind"
+          :create-material="shellState.sandboxCreateMaterial"
+          :create-model-key="shellState.sandboxCreateModelKey"
           :can-edit-selection="canEditSelection"
           @toggle-build="toggleSandboxBuild"
           @leave="leaveSandbox"
+          @update-create-settings="updateSandboxCreateSettings"
           @action="triggerSandboxAction"
         />
+
+        <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land'">
+          <button
+            class="planet-switcher__btn"
+            :class="{ 'is-active': shellState.activePlanetId === 'black-hole' }"
+            @click="selectPlanet('black-hole')"
+          >
+            Black Hole (Menu)
+          </button>
+          <button
+            class="planet-switcher__btn"
+            :class="{ 'is-active': shellState.activePlanetId === 'veltara' }"
+            @click="selectPlanet('veltara')"
+          >
+            Veltara
+          </button>
+          <button
+            class="planet-switcher__btn"
+            :class="{ 'is-active': shellState.activePlanetId === 'earth-test' }"
+            @click="selectPlanet('earth-test')"
+          >
+            Earth (Test)
+          </button>
+        </div>
       </div>
     `,
   }).mount(mountPoint);

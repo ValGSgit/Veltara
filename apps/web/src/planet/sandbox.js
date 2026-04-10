@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { ModelLibrary, applySurfaceMaterials } from './models.js';
 
 const MATERIAL_COLORS = {
   stone: 0x9ba5b1,
@@ -27,8 +28,10 @@ export class RegionSandboxLayer {
   planetMesh;
   /** @type {THREE.Group} */
   group;
-  /** @type {Map<string, { data: any, mesh: THREE.Mesh }>} */
+  /** @type {Map<string, { data: any, mesh: THREE.Object3D }>} */
   objects = new Map();
+  /** @type {Map<string, number>} */
+  pendingModelLoads = new Map();
 
   raycaster = new THREE.Raycaster();
   selectedObjectId = null;
@@ -40,6 +43,7 @@ export class RegionSandboxLayer {
     this.group = new THREE.Group();
     this.group.name = 'region-sandbox-objects';
     this.scene.add(this.group);
+    this.models = new ModelLibrary();
   }
 
   setPlacementSurface(surfaceMesh) {
@@ -62,30 +66,38 @@ export class RegionSandboxLayer {
     const existing = this.objects.get(objectData.id);
 
     if (!existing) {
-      const mesh = this.createMesh(objectData);
+      const mesh = this.createPrimitiveMesh(objectData);
       this.group.add(mesh);
       this.objects.set(objectData.id, { data: objectData, mesh });
       this.applyTransform(mesh, objectData);
+      this.tryUpgradeToModel(objectData.id);
       return;
     }
 
+    const previousModelKey = this.getModelKey(existing.data);
+    const nextModelKey = this.getModelKey(objectData);
     existing.data = objectData;
-    this.applyTransform(existing.mesh, objectData);
-    this.applyMaterial(existing.mesh, objectData.material, objectData.id === this.selectedObjectId);
+    if (previousModelKey !== nextModelKey) {
+      if (nextModelKey && this.models.hasModel(nextModelKey)) {
+        this.tryUpgradeToModel(objectData.id);
+      } else if (existing.mesh.userData?.isModelMesh) {
+        this.replaceWithPrimitive(objectData.id);
+      }
+    }
+    const active = this.objects.get(objectData.id);
+    if (!active) return;
+    this.applyTransform(active.mesh, objectData);
+    this.applyMaterial(active.mesh, objectData.material, objectData.id === this.selectedObjectId);
   }
 
   remove(objectId) {
     const entry = this.objects.get(objectId);
     if (!entry) return;
 
-    entry.mesh.geometry.dispose();
-    if (Array.isArray(entry.mesh.material)) {
-      entry.mesh.material.forEach((m) => m.dispose());
-    } else {
-      entry.mesh.material.dispose();
-    }
+    this.disposeObject(entry.mesh);
     this.group.remove(entry.mesh);
     this.objects.delete(objectId);
+    this.pendingModelLoads.delete(objectId);
 
     if (this.selectedObjectId === objectId) {
       this.selectedObjectId = null;
@@ -109,17 +121,30 @@ export class RegionSandboxLayer {
 
   pickObject(mouse, camera) {
     this.raycaster.setFromCamera(mouse, camera);
-    const intersects = this.raycaster.intersectObjects(this.group.children, false);
+    const intersects = this.raycaster.intersectObjects(this.group.children, true);
     if (intersects.length === 0) return null;
 
     const mesh = intersects[0].object;
-    const id = mesh.userData.objectId;
+    let target = mesh;
+    let id = target.userData?.objectId;
+    while (!id && target.parent) {
+      target = target.parent;
+      id = target.userData?.objectId;
+    }
     if (!id) return null;
 
     return this.objects.get(id)?.data ?? null;
   }
 
-  makePlacementData(mouse, camera, ownerId, regionId, kind = 'block', material = 'stone') {
+  makePlacementData(
+    mouse,
+    camera,
+    ownerId,
+    regionId,
+    kind = 'block',
+    material = 'stone',
+    modelKey = '',
+  ) {
     if (!ownerId || !regionId) return null;
 
     this.raycaster.setFromCamera(mouse, camera);
@@ -130,6 +155,15 @@ export class RegionSandboxLayer {
     const hit = intersects[0];
     const offset = hit.face?.normal?.clone()?.multiplyScalar(0.8) ?? new THREE.Vector3(0, 1, 0);
     const position = hit.point.clone().add(offset);
+
+    const normalizedModelKey = String(modelKey ?? '').trim().toLowerCase();
+    const metadata = {
+      placed_by: ownerId,
+      region_id: regionId,
+    };
+    if (/^[a-z0-9][a-z0-9-_]{0,63}$/.test(normalizedModelKey)) {
+      metadata.model_key = normalizedModelKey;
+    }
 
     return {
       kind,
@@ -142,10 +176,7 @@ export class RegionSandboxLayer {
       rotation: { x: 0, y: 0, z: 0 },
       scale: { x: 1, y: 1, z: 1 },
       interactive: true,
-      metadata: {
-        placed_by: ownerId,
-        region_id: regionId,
-      },
+      metadata,
     };
   }
 
@@ -168,7 +199,7 @@ export class RegionSandboxLayer {
     this.scene.remove(this.group);
   }
 
-  createMesh(objectData) {
+  createPrimitiveMesh(objectData) {
     const geometryFactory = KIND_GEOMETRY[objectData.kind] ?? KIND_GEOMETRY.block;
     const geometry = geometryFactory();
     const material = new THREE.MeshStandardMaterial({
@@ -185,8 +216,62 @@ export class RegionSandboxLayer {
     mesh.castShadow = false;
     mesh.receiveShadow = false;
     mesh.userData.objectId = objectData.id;
+    mesh.userData.isModelMesh = false;
 
     return mesh;
+  }
+
+  getModelKey(objectData) {
+    const key = objectData?.metadata?.model_key;
+    if (!key) return null;
+    const normalized = String(key).trim().toLowerCase();
+    return normalized || null;
+  }
+
+  async tryUpgradeToModel(objectId) {
+    const entry = this.objects.get(objectId);
+    if (!entry) return;
+
+    const modelKey = this.getModelKey(entry.data);
+    if (!modelKey || !this.models.hasModel(modelKey)) return;
+
+    const loadVersion = (this.pendingModelLoads.get(objectId) ?? 0) + 1;
+    this.pendingModelLoads.set(objectId, loadVersion);
+
+    const model = await this.models.getModel(modelKey);
+    const current = this.objects.get(objectId);
+    if (!model || !current) return;
+    if (this.pendingModelLoads.get(objectId) !== loadVersion) return;
+
+    model.userData.objectId = objectId;
+    model.userData.isModelMesh = true;
+    model.userData.modelKey = modelKey;
+    model.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.userData.objectId = objectId;
+      }
+    });
+    this.applyTransform(model, current.data);
+    this.applyMaterial(model, current.data.material, objectId === this.selectedObjectId);
+
+    this.group.remove(current.mesh);
+    this.disposeObject(current.mesh);
+    this.group.add(model);
+    this.objects.set(objectId, { data: current.data, mesh: model });
+  }
+
+  replaceWithPrimitive(objectId) {
+    const current = this.objects.get(objectId);
+    if (!current) return;
+
+    const primitive = this.createPrimitiveMesh(current.data);
+    this.applyTransform(primitive, current.data);
+    this.applyMaterial(primitive, current.data.material, objectId === this.selectedObjectId);
+
+    this.group.remove(current.mesh);
+    this.disposeObject(current.mesh);
+    this.group.add(primitive);
+    this.objects.set(objectId, { data: current.data, mesh: primitive });
   }
 
   applyTransform(mesh, objectData) {
@@ -196,10 +281,24 @@ export class RegionSandboxLayer {
   }
 
   applyMaterial(mesh, materialName, isSelected) {
-    const material = mesh.material;
-    if (!(material instanceof THREE.MeshStandardMaterial)) return;
+    if (mesh instanceof THREE.Mesh && mesh.material instanceof THREE.MeshStandardMaterial) {
+      mesh.material.color.setHex(MATERIAL_COLORS[materialName] ?? MATERIAL_COLORS.stone);
+      mesh.material.emissiveIntensity = isSelected ? 0.65 : (materialName === 'neon' ? 0.4 : 0.05);
+      return;
+    }
 
-    material.color.setHex(MATERIAL_COLORS[materialName] ?? MATERIAL_COLORS.stone);
-    material.emissiveIntensity = isSelected ? 0.65 : (materialName === 'neon' ? 0.4 : 0.05);
+    applySurfaceMaterials(mesh, materialName, isSelected);
+  }
+
+  disposeObject(root) {
+    root.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      child.geometry?.dispose?.();
+      if (Array.isArray(child.material)) {
+        child.material.forEach((m) => m?.dispose?.());
+      } else {
+        child.material?.dispose?.();
+      }
+    });
   }
 }

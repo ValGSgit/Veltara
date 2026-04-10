@@ -8,6 +8,7 @@
 import './styles/main.css';
 import * as THREE from 'three';
 import { Planet } from './planet/planet.js';
+import { PlanetModel } from './planet/planet-model.js';
 import { RegionMarkers } from './planet/regions.js';
 import { PlayerDots } from './planet/players.js';
 import { RegionSandboxLayer } from './planet/sandbox.js';
@@ -55,12 +56,19 @@ function getQuality() {
 
 let quality = getQuality();
 const planet = new Planet(scene, quality);
+const earthPlanet = new PlanetModel(scene, '/models/earth-00.glb');
+const blackHolePlanet = new PlanetModel(scene, '/models/black_hole/source/black%20hole.fbx', {
+  format: 'fbx',
+  spinSpeed: 0.0045,
+});
 const regions = new RegionMarkers(scene);
 const players = new PlayerDots(scene);
 const sandbox = new RegionSandboxLayer(scene, planet.mesh);
 const regionLand = new RegionLandScene(scene);
 const cameraCtrl = new CameraController(camera, canvas);
 const minimap = new Minimap();
+earthPlanet.setVisible(false);
+blackHolePlanet.setVisible(false);
 
 /** @type {{ spherical: { radius: number, phi: number, theta: number }, targetSpherical: { radius: number, phi: number, theta: number } } | null} */
 let planetCameraSnapshot = null;
@@ -132,6 +140,8 @@ function setSceneMode(nextMode, regionId = null) {
       planet.mesh.visible = false;
       planet.atmosphere.visible = false;
       planet.clouds.visible = false;
+      earthPlanet.setVisible(false);
+      blackHolePlanet.setVisible(false);
       regions.markers.forEach((group) => { group.visible = false; });
       players.instancedMesh.visible = false;
       minimap.canvas.style.display = 'none';
@@ -147,10 +157,16 @@ function setSceneMode(nextMode, regionId = null) {
     store.set('sceneMode', 'planet');
     store.set('activeRegionLandId', null);
 
-    planet.mesh.visible = true;
-    planet.atmosphere.visible = true;
-    planet.clouds.visible = true;
-    regions.markers.forEach((group) => { group.visible = true; });
+    const activePlanetId = store.get('activePlanetId') ?? 'black-hole';
+    const usingEarth = activePlanetId === 'earth-test';
+    const usingBlackHole = activePlanetId === 'black-hole';
+    const usingVeltara = !usingEarth && !usingBlackHole;
+    planet.mesh.visible = usingVeltara;
+    planet.atmosphere.visible = usingVeltara;
+    planet.clouds.visible = usingVeltara;
+    earthPlanet.setVisible(usingEarth);
+    blackHolePlanet.setVisible(usingBlackHole);
+    regions.markers.forEach((group) => { group.visible = usingVeltara; });
     players.instancedMesh.visible = true;
     minimap.canvas.style.display = 'block';
 
@@ -164,6 +180,41 @@ function setSceneMode(nextMode, regionId = null) {
     sandbox.group.visible = false;
     sandbox.setPlacementSurface(planet.mesh);
   });
+}
+
+async function setActivePlanet(planetId) {
+  const next = planetId === 'earth-test' || planetId === 'black-hole' ? planetId : 'veltara';
+  if (store.get('activePlanetId') === next) return;
+  store.set('activePlanetId', next);
+
+  if (store.get('sceneMode') !== 'planet') return;
+
+  if (next === 'earth-test') {
+    const loaded = await earthPlanet.loadIfNeeded();
+    if (!loaded) {
+      store.set('activePlanetId', 'black-hole');
+      toast.error('Earth model failed to load. Reverting to main menu.');
+      return;
+    }
+  }
+  if (next === 'black-hole') {
+    const loaded = await blackHolePlanet.loadIfNeeded();
+    if (!loaded) {
+      store.set('activePlanetId', 'veltara');
+      toast.error('Black hole model failed to load. Reverting to Veltara.');
+      return;
+    }
+  }
+
+  const usingEarth = next === 'earth-test';
+  const usingBlackHole = next === 'black-hole';
+  const usingVeltara = !usingEarth && !usingBlackHole;
+  planet.mesh.visible = usingVeltara;
+  planet.atmosphere.visible = usingVeltara;
+  planet.clouds.visible = usingVeltara;
+  earthPlanet.setVisible(usingEarth);
+  blackHolePlanet.setVisible(usingBlackHole);
+  regions.markers.forEach((group) => { group.visible = usingVeltara; });
 }
 
 function enterRegionLand(regionId) {
@@ -383,6 +434,30 @@ document.addEventListener('sandbox-build-mode', (e) => {
   toast.info(enabled ? 'Sandbox build mode enabled (Shift + Click to place).' : 'Sandbox build mode disabled.', 2500);
 });
 
+function sanitizeCreateKind(value) {
+  const allowed = new Set(['block', 'platform', 'beacon', 'orb']);
+  const next = String(value ?? '').trim().toLowerCase();
+  return allowed.has(next) ? next : 'block';
+}
+
+function sanitizeCreateMaterial(value) {
+  const allowed = new Set(['stone', 'metal', 'wood', 'glass', 'neon']);
+  const next = String(value ?? '').trim().toLowerCase();
+  return allowed.has(next) ? next : 'stone';
+}
+
+function sanitizeCreateModelKey(value) {
+  const normalized = normalizeModelKey(value);
+  return /^[a-z0-9][a-z0-9-_]{0,63}$/.test(normalized) ? normalized : '';
+}
+
+document.addEventListener('sandbox-create-settings', (e) => {
+  const detail = e.detail ?? {};
+  store.set('sandboxCreateKind', sanitizeCreateKind(detail.kind));
+  store.set('sandboxCreateMaterial', sanitizeCreateMaterial(detail.material));
+  store.set('sandboxCreateModelKey', sanitizeCreateModelKey(detail.modelKey));
+});
+
 document.addEventListener('enter-region-land', (e) => {
   const { regionId } = e.detail ?? {};
   if (!regionId) return;
@@ -391,6 +466,11 @@ document.addEventListener('enter-region-land', (e) => {
 
 document.addEventListener('leave-region-land', () => {
   leaveRegionLand();
+});
+
+document.addEventListener('planet-select', (e) => {
+  const planetId = String(e.detail?.planetId ?? 'veltara');
+  void setActivePlanet(planetId);
 });
 
 function sendSandboxInteraction(interactionType, payload) {
@@ -408,6 +488,34 @@ function sendSandboxInteraction(interactionType, payload) {
       payload,
     },
   });
+}
+
+function normalizeObjectName(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, 64);
+}
+
+function normalizeUserId(value) {
+  return String(value ?? '').trim().slice(0, 64);
+}
+
+function normalizeModelKey(value) {
+  return String(value ?? '').trim().toLowerCase().slice(0, 64);
+}
+
+function getMetadataValidationError(name) {
+  if (!name) return null;
+  if (/[<>]/.test(name)) return 'Name cannot include angle brackets.';
+  if (/[\u0000-\u001F\u007F]/.test(name)) return 'Name contains unsupported control characters.';
+  if (/\b(?:https?:\/\/|www\.)\S+/i.test(name)) return 'Name cannot contain links.';
+  return null;
+}
+
+function getModelKeyValidationError(modelKey) {
+  if (!modelKey) return null;
+  if (!/^[a-z0-9][a-z0-9-_]{0,63}$/.test(modelKey)) {
+    return 'Model key must use letters, numbers, dash, or underscore.';
+  }
+  return null;
 }
 
 function getNodeType(object) {
@@ -485,54 +593,154 @@ function removeSelectedSandboxObject() {
 document.addEventListener('sandbox-ui-action', (e) => {
   const action = e.detail?.action;
   if (!action) return;
+  const actionType = typeof action === 'string' ? action : action.type;
+  const actionPayload = typeof action === 'string' ? undefined : action.payload;
 
-  if (action === 'use') {
+  if (actionType === 'use') {
     sendSandboxInteraction('use', { scene_mode: store.get('sceneMode') });
     return;
   }
 
-  if (action === 'rotate') {
+  if (actionType === 'rotate') {
     rotateSelectedSandboxObject();
     return;
   }
 
-  if (action === 'remove') {
+  if (actionType === 'remove') {
     removeSelectedSandboxObject();
     return;
   }
 
-  if (action === 'lock') {
+  if (actionType === 'lock') {
     sendSandboxInteraction('door_lock');
     return;
   }
 
-  if (action === 'unlock') {
+  if (actionType === 'unlock') {
     sendSandboxInteraction('door_unlock');
     return;
   }
 
-  if (action === 'put') {
+  if (actionType === 'put') {
     sendSandboxInteraction('storage_put', { item_id: 'ore', count: 1 });
     return;
   }
 
-  if (action === 'take') {
+  if (actionType === 'take') {
     sendSandboxInteraction('storage_take', { item_id: 'ore', count: 1 });
     return;
   }
 
-  if (action === 'start-craft') {
+  if (actionType === 'start-craft') {
     sendSandboxInteraction('craft_start', { recipe: 'iron_ingot', duration_ms: 15000 });
     return;
   }
 
-  if (action === 'collect-craft') {
+  if (actionType === 'collect-craft') {
     sendSandboxInteraction('craft_collect');
     return;
   }
 
-  if (action === 'repair') {
+  if (actionType === 'repair') {
     sendRepairInteraction();
+    return;
+  }
+
+  if (actionType === 'set-name') {
+    const selectedId = store.get('selectedSandboxObjectId');
+    const selected = selectedId ? sandbox.getObjectById(selectedId) : null;
+    if (!selected || !socket?.isConnected) return;
+    const userId = store.get('user')?.id;
+    if (selected.owner_id !== userId) return;
+    const name = normalizeObjectName(actionPayload?.name);
+    const validationError = getMetadataValidationError(name);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    socket.send('region_action', {
+      type: 'object_upsert',
+      data: {
+        id: selected.id,
+        kind: selected.kind,
+        material: selected.material,
+        position: selected.position,
+        rotation: selected.rotation,
+        scale: selected.scale,
+        interactive: selected.interactive,
+        metadata: { ...(selected.metadata ?? {}), name },
+        version: selected.version,
+      },
+    });
+    return;
+  }
+
+  if (actionType === 'set-model-key') {
+    const selectedId = store.get('selectedSandboxObjectId');
+    const selected = selectedId ? sandbox.getObjectById(selectedId) : null;
+    if (!selected || !socket?.isConnected) return;
+    const userId = store.get('user')?.id;
+    if (selected.owner_id !== userId) return;
+
+    const modelKey = normalizeModelKey(actionPayload?.model_key);
+    const validationError = getModelKeyValidationError(modelKey);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    const nextMetadata = { ...(selected.metadata ?? {}) };
+    if (modelKey) {
+      nextMetadata.model_key = modelKey;
+    } else {
+      delete nextMetadata.model_key;
+    }
+
+    socket.send('region_action', {
+      type: 'object_upsert',
+      data: {
+        id: selected.id,
+        kind: selected.kind,
+        material: selected.material,
+        position: selected.position,
+        rotation: selected.rotation,
+        scale: selected.scale,
+        interactive: selected.interactive,
+        metadata: nextMetadata,
+        version: selected.version,
+      },
+    });
+    return;
+  }
+
+  if (actionType === 'grant-builder' || actionType === 'revoke-builder') {
+    const selectedId = store.get('selectedSandboxObjectId');
+    const selected = selectedId ? sandbox.getObjectById(selectedId) : null;
+    if (!selected || !socket?.isConnected) return;
+    const userId = store.get('user')?.id;
+    if (selected.owner_id !== userId) return;
+    const targetUserId = normalizeUserId(actionPayload?.user_id);
+    if (!targetUserId || targetUserId === userId) return;
+    const permissions = { ...(selected.metadata?.permissions ?? {}) };
+    if (actionType === 'grant-builder') {
+      permissions[targetUserId] = 'builder';
+    } else {
+      delete permissions[targetUserId];
+    }
+    socket.send('region_action', {
+      type: 'object_upsert',
+      data: {
+        id: selected.id,
+        kind: selected.kind,
+        material: selected.material,
+        position: selected.position,
+        rotation: selected.rotation,
+        scale: selected.scale,
+        interactive: selected.interactive,
+        metadata: { ...(selected.metadata ?? {}), permissions },
+        version: selected.version,
+      },
+    });
   }
 });
 
@@ -540,6 +748,7 @@ document.addEventListener('sandbox-ui-action', (e) => {
 
 canvas.addEventListener('dblclick', (e) => {
   if (store.get('sceneMode') === 'region-land') return;
+  if (store.get('activePlanetId') !== 'veltara') return;
 
   const mouse = CameraController.getNDC(e, canvas);
   const regionId = regions.checkClick(mouse, camera);
@@ -555,6 +764,7 @@ canvas.addEventListener('dblclick', (e) => {
 
 canvas.addEventListener('mousemove', (e) => {
   if (store.get('sceneMode') === 'region-land') return;
+  if (store.get('activePlanetId') !== 'veltara') return;
 
   const mouse = CameraController.getNDC(e, canvas);
   regions.checkHover(mouse, camera, e);
@@ -586,6 +796,9 @@ canvas.addEventListener('click', (e) => {
     camera,
     store.get('user')?.id,
     store.get('activeRegionLandId') ?? store.get('selfRegionId'),
+    store.get('sandboxCreateKind') ?? 'block',
+    store.get('sandboxCreateMaterial') ?? 'stone',
+    store.get('sandboxCreateModelKey') ?? '',
   );
   if (!placementData) return;
 
@@ -708,6 +921,8 @@ window.addEventListener('resize', () => {
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 async function bootstrap() {
+  void setActivePlanet(store.get('activePlanetId'));
+
   // Try to restore session
   const user = await api.restoreSession();
 
@@ -787,6 +1002,11 @@ function animate() {
 
   if (!prefersReducedMotion && store.get('sceneMode') !== 'region-land') {
     planet.update(elapsed);
+  }
+
+  if (store.get('sceneMode') !== 'region-land') {
+    earthPlanet.update(elapsed);
+    blackHolePlanet.update(elapsed);
   }
 
   if (store.get('sceneMode') === 'region-land') {

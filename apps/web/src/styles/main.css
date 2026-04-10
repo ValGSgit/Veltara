@@ -146,15 +146,60 @@ body::after {
 .app-nav {
   position: fixed;
   top: 18px;
-  left: 50%;
+  left: calc(50% + 42px);
   transform: translateX(-50%);
-  width: min(1280px, calc(100vw - 24px));
+  width: min(1220px, calc(100vw - 104px));
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
   z-index: 80;
+}
+
+.global-sidebar {
+  position: fixed;
+  left: 14px;
+  top: 88px;
+  z-index: 79;
+  width: 140px;
+  padding: 10px;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.global-sidebar__title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #8ca4c7;
+  margin: 2px 2px 4px;
+}
+
+.global-sidebar__btn {
+  border: 1px solid rgba(165, 211, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #eaf4ff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: left;
+  padding: 7px 9px;
+  cursor: pointer;
+}
+
+.global-sidebar__btn.is-active {
+  border-color: rgba(95, 210, 255, 0.55);
+  background: linear-gradient(135deg, rgba(55, 203, 255, 0.28), rgba(84, 111, 255, 0.25));
+}
+
+.global-sidebar__divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.22);
+  margin: 4px 2px;
 }
 
 .app-nav__brand {
@@ -236,11 +281,27 @@ body::after {
   color: var(--text-muted);
 }
 
+.app-nav__status--mode {
+  color: #c6ddff;
+  border-color: rgba(140, 178, 255, 0.45);
+  background: rgba(24, 40, 74, 0.5);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .home-shell {
   width: min(1180px, calc(100vw - 24px));
   margin: 96px auto 0;
   display: grid;
   gap: 16px;
+}
+
+.home-hero__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .home-hero {
@@ -258,6 +319,45 @@ body::after {
   letter-spacing: 0.12em;
 }
 
+.sandbox-meta-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.sandbox-meta-editor__label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: rgba(226, 226, 240, 0.78);
+}
+
+.sandbox-meta-editor__input {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(10, 14, 30, 0.62);
+  color: #e2e2f0;
+  border-radius: 10px;
+  padding: 7px 9px;
+  font-size: 0.78rem;
+}
+
+.sandbox-meta-editor__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sandbox-meta-editor__error {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #ffb3b3;
+}
+
+.sandbox-node-guide__title {
+  margin: 0.35rem 0 0;
+  color: #e9f4ff;
+  font-weight: 600;
+}
+
 .home-hero h1 {
   margin: 0;
   font-size: clamp(1.8rem, 3vw, 2.5rem);
@@ -268,6 +368,7 @@ body::after {
   margin: 10px 0 0;
   color: var(--text-muted);
   max-width: 54ch;
+  line-height: 1.5;
 }
 
 .home-hero__actions {
@@ -289,11 +390,33 @@ body::after {
   gap: 10px;
 }
 
+.home-events .panel-title {
+  margin-bottom: 6px;
+}
+
+.home-events .event-card {
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.home-events .event-card:hover {
+  border-color: rgba(79, 255, 176, 0.26);
+  background: rgba(79, 255, 176, 0.06);
+  transform: translateY(-1px);
+}
+
 @media (max-width: 960px) {
+  .global-sidebar {
+    left: 10px;
+    top: 76px;
+    width: 118px;
+  }
+
   .app-nav {
+    left: 50%;
     gap: 8px;
     flex-wrap: wrap;
     justify-content: center;
+    width: min(1280px, calc(100vw - 24px));
   }
 
   .home-hero {
@@ -1095,6 +1218,42 @@ body::after {
 .sandbox-slide-leave-to {
   opacity: 0;
   transform: translateY(-8px) scale(0.98);
+}
+
+.planet-switcher {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 999px;
+  pointer-events: auto;
+  max-width: min(92vw, 720px);
+  overflow-x: auto;
+}
+
+.home-shell ~ .planet-switcher {
+  bottom: 22px;
+}
+
+.planet-switcher__btn {
+  border-radius: 999px;
+  border: 1px solid rgba(165, 211, 255, 0.2);
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #eaf4ff;
+  font-weight: 600;
+  font-size: 0.76rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.planet-switcher__btn.is-active {
+  border-color: rgba(95, 210, 255, 0.55);
+  background: linear-gradient(135deg, rgba(55, 203, 255, 0.28), rgba(84, 111, 255, 0.25));
 }
 
 /* ─── Reduce Motion ─────────────────────────────────────────────────────────── */
