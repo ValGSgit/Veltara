@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const proxyTarget = process.env.WORKERS_PROXY_TARGET ?? 'https://localhost:8787';
+const proxyTarget = process.env.WORKERS_PROXY_TARGET ?? 'http://localhost:8787';
 
 function getHttpsConfig() {
   if (String(process.env.DEV_HTTPS ?? '').toLowerCase() === 'false') {

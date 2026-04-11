@@ -5,7 +5,8 @@
 
 const envApiBase = String(import.meta.env.VITE_API_BASE_URL ?? '').trim();
 const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const BASE_URL = envApiBase || (isLocalHost ? 'https://localhost:8787' : '');
+// Prefer same-origin /api proxy in local dev when VITE_API_BASE_URL is not set.
+const BASE_URL = envApiBase || '';
 
 class ApiClient {
   token = null;
@@ -30,7 +31,10 @@ class ApiClient {
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (networkErr) {
-      const err = new Error('Unable to reach Veltara API. Check backend/proxy and VITE_API_BASE_URL.');
+      const hint = isLocalHost
+        ? 'Unable to reach Veltara API. Ensure `pnpm dev` (or docker compose) is running and Vite proxy can reach Workers on :8787.'
+        : 'Unable to reach Veltara API. Check backend/proxy and VITE_API_BASE_URL.';
+      const err = new Error(hint);
       err.code = 'NETWORK_ERROR';
       err.cause = networkErr;
       throw err;

@@ -1,30 +1,26 @@
 <script setup>
+import PanelCard from '../components/ui/PanelCard.vue';
+import PillButton from '../components/ui/PillButton.vue';
+
 defineProps({
   shellState: { type: Object, required: true },
   lobbyViewOptions: { type: Object, required: true },
   regions: { type: Array, required: true },
   activeRegion: { type: Object, required: true },
-  nearbyPlayers: { type: Array, required: true },
   activeEvents: { type: Array, required: true },
   clock: { type: String, required: true },
   totalOnline: { type: Number, required: true },
   featuredRegion: { type: Object, required: true },
-  chatMessages: { type: Array, required: true },
   teleport: { type: Function, required: true },
   openPanel: { type: Function, required: true },
-  setChatTab: { type: Function, required: true },
-  sendChat: { type: Function, required: true },
   quickRegion: { type: Function, required: true },
   setLobbyViewOption: { type: Function, required: true },
-  playerName: { type: Function, required: true },
-  playerAction: { type: Function, required: true },
-  playerRegion: { type: Function, required: true },
 });
 </script>
 
 <template>
   <div class="lobby-shell">
-    <header class="lobby-topbar glass-panel">
+    <PanelCard as="header" class="lobby-topbar" compact>
       <div class="brand-block">
         <div class="brand-mark">V</div>
         <div>
@@ -43,15 +39,15 @@ defineProps({
       </div>
 
       <div class="topbar-actions">
-        <button class="icon-button" @click="openPanel('social')">Feed</button>
-        <button class="icon-button" @click="openPanel('store')">Store</button>
-        <button class="icon-button" @click="openPanel('profile')">Profile</button>
-        <button class="icon-button icon-button--primary" @click="quickRegion">Jump</button>
+        <PillButton class="icon-button" @click="openPanel('social')">Feed</PillButton>
+        <PillButton class="icon-button" @click="openPanel('store')">Store</PillButton>
+        <PillButton class="icon-button" @click="openPanel('profile')">Profile</PillButton>
+        <PillButton class="icon-button icon-button--primary" @click="quickRegion">Jump</PillButton>
       </div>
-    </header>
+    </PanelCard>
 
     <main class="lobby-grid">
-      <aside v-if="lobbyViewOptions.showRegions" class="glass-panel region-rail">
+      <PanelCard v-if="lobbyViewOptions.showRegions" as="aside" class="region-rail">
         <div class="panel-heading">
           <div>
             <div class="panel-title">Regions</div>
@@ -77,10 +73,10 @@ defineProps({
             <span class="region-card__count">{{ region.users ?? 0 }}</span>
           </button>
         </div>
-      </aside>
+      </PanelCard>
 
       <section class="center-stack">
-        <article class="glass-panel">
+        <PanelCard as="article">
           <div class="panel-heading panel-heading--compact">
             <div>
               <div class="panel-title">Lobby Layout</div>
@@ -88,17 +84,16 @@ defineProps({
             </div>
           </div>
           <div class="flex flex-wrap gap-2 p-3">
-            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showTopStats" @change="setLobbyViewOption('showTopStats', $event.target.checked)" /> Stats</label>
-            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showRegions" @change="setLobbyViewOption('showRegions', $event.target.checked)" /> Regions</label>
-            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showWorldPulse" @change="setLobbyViewOption('showWorldPulse', $event.target.checked)" /> World Pulse</label>
-            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showSpotlight" @change="setLobbyViewOption('showSpotlight', $event.target.checked)" /> Spotlight</label>
-            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showNearbyPlayers" @change="setLobbyViewOption('showNearbyPlayers', $event.target.checked)" /> Nearby</label>
-            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showChat" @change="setLobbyViewOption('showChat', $event.target.checked)" /> Chat</label>
-            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showFooterHints" @change="setLobbyViewOption('showFooterHints', $event.target.checked)" /> Footer</label>
+            <PillButton as="label" class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showTopStats" @change="setLobbyViewOption('showTopStats', $event.target.checked)" /> Stats</PillButton>
+            <PillButton as="label" class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showRegions" @change="setLobbyViewOption('showRegions', $event.target.checked)" /> Regions</PillButton>
+            <PillButton as="label" class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showWorldPulse" @change="setLobbyViewOption('showWorldPulse', $event.target.checked)" /> World Pulse</PillButton>
+            <PillButton as="label" class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showSpotlight" @change="setLobbyViewOption('showSpotlight', $event.target.checked)" /> Spotlight</PillButton>
+            <PillButton as="label" class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showFooterHints" @change="setLobbyViewOption('showFooterHints', $event.target.checked)" /> Footer</PillButton>
+            <PillButton class="mini-chip" @click="openPanel('social')">Social on Home</PillButton>
           </div>
-        </article>
+        </PanelCard>
 
-        <article class="glass-panel hero-card">
+        <PanelCard as="article" class="hero-card">
           <div class="hero-card__copy">
             <div class="eyebrow">Live world state</div>
             <h1>Explore the planet with a clearer command layout.</h1>
@@ -130,14 +125,14 @@ defineProps({
           </div>
 
           <div class="hero-card__actions">
-            <button class="cta-button" @click="openPanel('profile')">Open profile</button>
-            <button class="cta-button cta-button--ghost" @click="openPanel('social')">Open feed</button>
-            <button class="cta-button cta-button--ghost" @click="openPanel('settings')">Settings</button>
+            <PillButton size="md" class="cta-button" @click="openPanel('profile')">Open profile</PillButton>
+            <PillButton size="md" class="cta-button cta-button--ghost" @click="openPanel('social')">Open feed</PillButton>
+            <PillButton size="md" class="cta-button cta-button--ghost" @click="openPanel('settings')">Settings</PillButton>
           </div>
-        </article>
+        </PanelCard>
 
         <div class="middle-grid">
-          <article v-if="lobbyViewOptions.showWorldPulse" class="glass-panel feed-panel">
+          <PanelCard v-if="lobbyViewOptions.showWorldPulse" as="article" class="feed-panel">
             <div class="panel-heading panel-heading--compact">
               <div>
                 <div class="panel-title">World pulse</div>
@@ -151,9 +146,9 @@ defineProps({
                 <div class="event-card__desc">{{ event.description ?? event.text ?? 'A live system event is active.' }}</div>
               </div>
             </div>
-          </article>
+          </PanelCard>
 
-          <article v-if="lobbyViewOptions.showSpotlight" class="glass-panel spotlight-panel">
+          <PanelCard v-if="lobbyViewOptions.showSpotlight" as="article" class="spotlight-panel">
             <div class="panel-heading panel-heading--compact">
               <div>
                 <div class="panel-title">Spotlight</div>
@@ -168,73 +163,19 @@ defineProps({
               </div>
             </div>
             <div class="spotlight-actions">
-              <button class="mini-chip" @click="teleport(featuredRegion.id)">Teleport</button>
-              <button class="mini-chip" @click="openPanel('store')">Cosmetics</button>
-              <button class="mini-chip" @click="openPanel('social')">Social feed</button>
+              <PillButton class="mini-chip" @click="teleport(featuredRegion.id)">Teleport</PillButton>
+              <PillButton class="mini-chip" @click="openPanel('store')">Cosmetics</PillButton>
+              <PillButton class="mini-chip" @click="openPanel('social')">Social feed</PillButton>
             </div>
-          </article>
-          <article v-if="!lobbyViewOptions.showWorldPulse && !lobbyViewOptions.showSpotlight" class="glass-panel feed-panel">
+          </PanelCard>
+          <PanelCard v-if="!lobbyViewOptions.showWorldPulse && !lobbyViewOptions.showSpotlight" as="article" class="feed-panel">
             <div class="empty-state">Both center panels are hidden. Enable sections in Lobby Layout.</div>
-          </article>
+          </PanelCard>
         </div>
       </section>
-
-      <aside class="right-stack">
-        <article v-if="lobbyViewOptions.showNearbyPlayers" class="glass-panel people-panel">
-          <div class="panel-heading panel-heading--compact">
-            <div>
-              <div class="panel-title">Nearby players</div>
-              <div class="panel-copy">Who is close to your region</div>
-            </div>
-          </div>
-          <div class="player-stack">
-            <div v-if="!nearbyPlayers.length" class="empty-state">No nearby players yet.</div>
-            <div v-for="player in nearbyPlayers" :key="player.id" class="player-row-vue">
-              <div class="player-avatar-vue" :style="{ background: player.color ?? '#6c63ff' }">
-                {{ playerName(player).charAt(0).toUpperCase() }}
-              </div>
-              <div class="player-row-vue__body">
-                <strong>{{ playerName(player) }}</strong>
-                <span>{{ playerAction(player) }} · {{ playerRegion(player) }}</span>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article v-if="lobbyViewOptions.showChat" class="glass-panel chat-panel-vue">
-          <div class="panel-heading panel-heading--compact">
-            <div>
-              <div class="panel-title">Global chat</div>
-              <div class="panel-copy">Switch between local and global conversations</div>
-            </div>
-          </div>
-
-          <div class="chat-tabs">
-            <button class="chat-tab-vue" :class="{ 'chat-tab-vue--active': shellState.chatTab === 'local' }" @click="setChatTab('local')">Local</button>
-            <button class="chat-tab-vue" :class="{ 'chat-tab-vue--active': shellState.chatTab === 'global' }" @click="setChatTab('global')">Global</button>
-          </div>
-
-          <div class="chat-stream" role="log" aria-label="Chat messages" aria-live="polite">
-            <div v-if="!chatMessages.length" class="empty-state">No messages yet.</div>
-            <div v-for="msg in chatMessages" :key="msg.id ?? msg.timestamp ?? msg.text" class="chat-message-vue">
-              <span class="chat-message-vue__author" :class="msg.is_npc ? 'chat-message-vue__author--npc' : ''">
-                {{ msg.is_npc ? '🤖 ' : '' }}{{ msg.username ?? msg.author ?? 'Explorer' }}
-              </span>
-              <span class="chat-message-vue__text">{{ msg.text }}</span>
-            </div>
-          </div>
-
-          <div class="chat-input-row">
-            <input class="chat-input-vue" type="text" maxlength="500" placeholder="Message the world…" @keydown="sendChat" />
-          </div>
-        </article>
-        <article v-if="!lobbyViewOptions.showNearbyPlayers && !lobbyViewOptions.showChat" class="glass-panel people-panel">
-          <div class="empty-state">Right column is hidden. Enable Nearby or Chat in Lobby Layout.</div>
-        </article>
-      </aside>
     </main>
 
-    <footer v-if="lobbyViewOptions.showFooterHints" class="lobby-footer glass-panel">
+    <PanelCard v-if="lobbyViewOptions.showFooterHints" as="footer" class="lobby-footer" compact>
       <div class="footer-hints">
         <span>Drag to rotate</span>
         <span>Scroll to zoom</span>
@@ -249,6 +190,6 @@ defineProps({
           <div class="footer-player__region">{{ activeRegion.name }}</div>
         </div>
       </div>
-    </footer>
+    </PanelCard>
   </div>
 </template>

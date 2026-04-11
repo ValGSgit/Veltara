@@ -1,4 +1,4 @@
-import { createApp, computed, reactive } from 'vue';
+import { createApp, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { REGIONS } from '@veltara/shared';
 import { store } from '../state/store.js';
 import { handleAuthSuccess as resolveAuthSuccess } from '../ui/auth.js';
@@ -28,6 +28,14 @@ store.on('*', ({ key, value }) => {
 
 let mounted = false;
 
+function pageFromPath(pathname) {
+  const path = String(pathname ?? '').toLowerCase();
+  if (path === '/planet') return 'planet';
+  if (path === '/profile') return 'profile';
+  if (path === '/shop') return 'shop';
+  return 'home';
+}
+
 export function mountAppShell() {
   const mountPoint = document.getElementById('hud');
   if (!mountPoint || mounted) return;
@@ -49,6 +57,7 @@ export function mountAppShell() {
     },
     setup() {
       const currentPage = computed(() => shellState.currentPage ?? 'home');
+      const isHomeSurface = computed(() => ['home', 'profile', 'shop'].includes(currentPage.value));
       const authModal = computed(() => shellState.authModal);
       const onboardingVisible = computed(() => Boolean(shellState.showOnboarding));
       const activePanel = computed(() => shellState.activePanel);
@@ -119,6 +128,20 @@ export function mountAppShell() {
 
       const actions = useAppShellActions(shellState);
 
+      function syncPageFromLocation() {
+        const page = pageFromPath(window.location.pathname);
+        actions.navigate(page, { replace: true });
+      }
+
+      onMounted(() => {
+        syncPageFromLocation();
+        window.addEventListener('popstate', syncPageFromLocation);
+      });
+
+      onUnmounted(() => {
+        window.removeEventListener('popstate', syncPageFromLocation);
+      });
+
       return {
         shellState,
         currentPage,
@@ -133,6 +156,7 @@ export function mountAppShell() {
         totalOnline,
         featuredRegion,
         chatMessages,
+        isHomeSurface,
         activeRegionLand,
         sandboxObjectCount,
         selectedSandboxObject,
@@ -146,30 +170,6 @@ export function mountAppShell() {
     },
     template: `
       <div>
-        <aside v-if="!(currentPage === 'planet' && shellState.activePlanetId === 'black-hole')" class="global-sidebar glass-panel" role="navigation" aria-label="Quick access sidebar">
-          <div class="global-sidebar__title" aria-hidden="true">Navigate</div>
-          <button
-            class="global-sidebar__btn"
-            :class="{ 'is-active': currentPage === 'home' }"
-            @click="navigate('home')"
-          >
-            Home
-          </button>
-          <button
-            class="global-sidebar__btn"
-            :class="{ 'is-active': currentPage === 'planet' }"
-            @click="navigate('planet')"
-          >
-            Planet
-          </button>
-          <div class="global-sidebar__divider"></div>
-          <button class="global-sidebar__btn" @click="openPanel('social')">Social</button>
-          <button class="global-sidebar__btn" @click="openPanel('store')">Store</button>
-          <button class="global-sidebar__btn" @click="openPanel('profile')">Profile</button>
-          <button class="global-sidebar__btn" @click="openPanel('settings')">Settings</button>
-          <button class="global-sidebar__btn" @click="openCreatorStudio">Creator Hub</button>
-        </aside>
-
         <AppNavBar
           :current-page="currentPage"
           :is-authenticated="shellState.isAuthenticated"
@@ -184,7 +184,7 @@ export function mountAppShell() {
         />
 
         <HomeView
-          v-if="currentPage === 'home'"
+          v-if="isHomeSurface"
           :shell-state="shellState"
           :active-region="activeRegion"
           :regions="regions"
@@ -207,26 +207,19 @@ export function mountAppShell() {
         />
 
         <LobbyView
-          v-else-if="shellState.activePlanetId !== 'black-hole'"
+          v-else-if="currentPage === 'planet' && shellState.activePlanetId !== 'black-hole'"
           :shell-state="shellState"
           :lobby-view-options="shellState.lobbyViewOptions"
           :regions="regions"
           :active-region="activeRegion"
-          :nearby-players="nearbyPlayers"
           :active-events="activeEvents"
           :clock="clock"
           :total-online="totalOnline"
           :featured-region="featuredRegion"
-          :chat-messages="chatMessages"
           :teleport="teleport"
           :open-panel="openPanel"
-          :set-chat-tab="setChatTab"
-          :send-chat="sendChat"
           :quick-region="quickRegion"
           :set-lobby-view-option="setLobbyViewOption"
-          :player-name="playerName"
-          :player-action="playerAction"
-          :player-region="playerRegion"
         />
 
         <AuthModalView
@@ -275,7 +268,7 @@ export function mountAppShell() {
           @open-model-lab="openModelLab"
         />
 
-        <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land'" role="toolbar" aria-label="Planet switcher">
+        <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land' && currentPage === 'planet' && !(currentPage === 'planet' && shellState.activePlanetId === 'black-hole')" role="toolbar" aria-label="Planet switcher">
           <button
             class="planet-switcher__btn"
             :class="{ 'is-active': shellState.activePlanetId === 'black-hole' }"

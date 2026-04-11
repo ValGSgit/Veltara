@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { api } from '../../network/api.js';
 import { store } from '../../state/store.js';
 import { toast } from '../../ui/toast.js';
@@ -16,13 +16,34 @@ const error = ref('');
 const email = ref('');
 const password = ref('');
 const username = ref('');
+const showPassword = ref(false);
+const emailInput = ref(null);
+const usernameInput = ref(null);
 
 const isLogin = computed(() => props.mode === 'login');
+const submitLabel = computed(() => {
+  if (loading.value) return isLogin.value ? 'Signing in...' : 'Creating account...';
+  return isLogin.value ? 'Sign In' : 'Create Account';
+});
+
+const introText = computed(() =>
+  isLogin.value
+    ? 'Resume your explorer profile, sync your region, and jump back into the planet.'
+    : 'Pick a name, connect your identity, and step into a shared world built for social play.'
+);
+
+const isFormValid = computed(() => {
+  const normalizedEmail = String(email.value ?? '').trim();
+  const normalizedPassword = String(password.value ?? '');
+  const normalizedUsername = String(username.value ?? '').trim();
+  return Boolean(normalizedEmail && normalizedPassword && (isLogin.value || normalizedUsername));
+});
 
 function close() {
   emit('close');
   error.value = '';
   loading.value = false;
+  showPassword.value = false;
 }
 
 async function submit() {
@@ -61,6 +82,22 @@ function switchMode() {
   emit('switch-mode', isLogin.value ? 'register' : 'login');
   error.value = '';
 }
+
+function onKeyDown(event) {
+  if (event.key === 'Escape') close();
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onKeyDown);
+  nextTick(() => {
+    if (isLogin.value) emailInput.value?.focus();
+    else usernameInput.value?.focus();
+  });
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeyDown);
+});
 </script>
 
 <template>
@@ -98,42 +135,41 @@ function switchMode() {
               <h2 class="mt-2 text-3xl font-bold text-white">
                 {{ isLogin ? 'Sign in to Veltara' : 'Create your explorer account' }}
               </h2>
-              <p class="mt-2 text-sm leading-relaxed text-veltara-muted">
-                {{
-                  isLogin
-                    ? 'Resume your explorer profile, sync your region, and jump back into the planet.'
-                    : 'Pick a name, connect your identity, and step into a shared world built for social play.'
-                }}
-              </p>
+              <p class="mt-2 text-sm leading-relaxed text-veltara-muted">{{ introText }}</p>
             </div>
 
             <form class="space-y-4" @submit.prevent="submit" novalidate>
               <div v-if="!isLogin">
                 <label for="auth-username" class="mb-1.5 block text-xs font-medium text-veltara-muted">Username</label>
-                <input id="auth-username" v-model="username" type="text" required minlength="3" maxlength="32" autocomplete="username" class="input-field w-full" placeholder="explorer_42" />
+                <input id="auth-username" ref="usernameInput" v-model="username" type="text" required minlength="3" maxlength="32" autocomplete="username" class="input-field w-full" placeholder="explorer_42" />
               </div>
 
               <div>
                 <label for="auth-email" class="mb-1.5 block text-xs font-medium text-veltara-muted">Email</label>
-                <input id="auth-email" v-model="email" type="email" required autocomplete="email" class="input-field w-full" placeholder="you@example.com" />
+                <input id="auth-email" ref="emailInput" v-model="email" type="email" required autocomplete="email" class="input-field w-full" placeholder="you@example.com" />
               </div>
 
               <div>
                 <label for="auth-password" class="mb-1.5 block text-xs font-medium text-veltara-muted">Password</label>
-                <input
-                  id="auth-password"
-                  v-model="password"
-                  type="password"
-                  required
-                  :minlength="isLogin ? 1 : 8"
-                  :autocomplete="isLogin ? 'current-password' : 'new-password'"
-                  class="input-field w-full"
-                  :placeholder="isLogin ? '••••••••' : '8+ characters'"
-                />
+                <div class="relative">
+                  <input
+                    id="auth-password"
+                    v-model="password"
+                    :type="showPassword ? 'text' : 'password'"
+                    required
+                    :minlength="isLogin ? 1 : 8"
+                    :autocomplete="isLogin ? 'current-password' : 'new-password'"
+                    class="input-field w-full pr-16"
+                    :placeholder="isLogin ? '••••••••' : '8+ characters'"
+                  />
+                  <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-veltara-muted transition-colors hover:text-white" @click="showPassword = !showPassword">
+                    {{ showPassword ? 'Hide' : 'Show' }}
+                  </button>
+                </div>
               </div>
 
-              <button type="submit" class="btn-primary w-full py-3" :disabled="loading">
-                {{ loading ? (isLogin ? 'Signing in…' : 'Creating account…') : (isLogin ? 'Sign In' : 'Create Account') }}
+              <button type="submit" class="btn-primary w-full py-3 disabled:cursor-not-allowed disabled:opacity-70" :disabled="loading || !isFormValid">
+                {{ submitLabel }}
               </button>
 
               <p class="text-center text-xs text-veltara-muted">
@@ -144,7 +180,9 @@ function switchMode() {
               </p>
             </form>
 
-            <div v-if="error" class="mt-2 text-xs text-red-400">{{ error }}</div>
+            <div v-if="error" aria-live="polite" class="mt-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              {{ error }}
+            </div>
           </div>
         </div>
       </div>

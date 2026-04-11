@@ -8,11 +8,24 @@ const DEFAULT_LOBBY_OPTIONS = {
   showRegions: true,
   showWorldPulse: true,
   showSpotlight: true,
-  showNearbyPlayers: true,
-  showChat: true,
   showFooterHints: true,
 };
 let lobbyOptionsHydrated = false;
+
+const PAGE_TO_PATH = {
+  home: '/home',
+  planet: '/planet',
+  profile: '/profile',
+  shop: '/shop',
+};
+
+function pushPageLocation(page, { replace = false } = {}) {
+  const path = PAGE_TO_PATH[page] ?? '/home';
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname === path) return;
+  if (replace) window.history.replaceState({}, '', path);
+  else window.history.pushState({}, '', path);
+}
 
 function hydrateLobbyOptions() {
   if (lobbyOptionsHydrated) return;
@@ -38,8 +51,31 @@ export function useAppShellActions(shellState) {
     dispatchAppEvent('teleport-to-region', { regionId });
   }
 
-  function navigate(page) {
-    store.set('currentPage', page);
+  function navigate(page, options = {}) {
+    if (page === 'profile') {
+      store.set('currentPage', 'profile');
+      store.set('activePanel', 'profile');
+      pushPageLocation('profile', options);
+      return;
+    }
+
+    if (page === 'shop') {
+      store.set('currentPage', 'shop');
+      store.set('activePanel', 'store');
+      pushPageLocation('shop', options);
+      return;
+    }
+
+    if (page === 'planet') {
+      store.set('currentPage', 'planet');
+      store.set('activePanel', null);
+      pushPageLocation('planet', options);
+      return;
+    }
+
+    store.set('currentPage', 'home');
+    store.set('activePanel', null);
+    pushPageLocation('home', options);
   }
 
   function openPanel(panel) {
@@ -48,6 +84,9 @@ export function useAppShellActions(shellState) {
 
   function closePanel() {
     store.set('activePanel', null);
+    if (shellState.currentPage === 'profile' || shellState.currentPage === 'shop') {
+      navigate('home', { replace: true });
+    }
   }
 
   function setChatTab(tab) {

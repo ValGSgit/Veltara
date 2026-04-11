@@ -19,9 +19,7 @@ function deriveWsBaseFromApi(apiBase) {
 const WS_BASE =
   envWsBase
   || deriveWsBaseFromApi(envApiBase)
-  || (isLocalHost
-    ? 'wss://localhost:8787'
-    : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`);
+  || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
 
 export class RegionSocket {
   /** @type {WebSocket|null} */

@@ -73,8 +73,6 @@ export const store = createStore({
     showRegions: true,
     showWorldPulse: true,
     showSpotlight: true,
-    showNearbyPlayers: true,
-    showChat: true,
     showFooterHints: true,
   },
 

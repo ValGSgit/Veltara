@@ -1,5 +1,6 @@
 <script setup>
 import SocialHubView from '../components/SocialHubView.vue';
+import PanelCard from '../components/ui/PanelCard.vue';
 
 defineProps({
   shellState: { type: Object, required: true },
@@ -26,7 +27,7 @@ defineProps({
 
 <template>
   <section class="home-shell">
-    <article class="home-hero glass-panel">
+    <PanelCard as="article" class="home-hero">
       <div class="home-hero__content">
         <p class="home-eyebrow">Welcome to Veltara</p>
         <h1>Explore a living shared planet in real time.</h1>
@@ -46,16 +47,16 @@ defineProps({
         <div class="metric-tile"><span>Hotspot</span><strong>{{ featuredRegion.name }}</strong></div>
         <div class="metric-tile"><span>Cycle</span><strong>{{ clock }}</strong></div>
       </div>
-    </article>
+    </PanelCard>
 
-    <article class="glass-panel home-events">
+    <PanelCard as="article" class="home-events">
       <div class="panel-title">Live events</div>
       <div v-if="!activeEvents.length" class="empty-state">No active world events.</div>
       <div v-for="event in activeEvents.slice(0, 4)" :key="event.id ?? event.title" class="event-card">
         <div class="event-card__title">{{ event.title ?? 'World event' }}</div>
         <div class="event-card__desc">{{ event.description ?? event.text ?? 'A live system event is active.' }}</div>
       </div>
-    </article>
+    </PanelCard>
 
     <SocialHubView
       :shell-state="shellState"
@@ -71,3 +72,28 @@ defineProps({
     />
   </section>
 </template>
+
+<style scoped>
+.home-shell > * {
+  animation: homeFadeIn 220ms ease both;
+}
+
+.home-shell > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.home-shell > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+@keyframes homeFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+</style>

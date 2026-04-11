@@ -1,4 +1,6 @@
 <script setup>
+import PillButton from './ui/PillButton.vue';
+
 const props = defineProps({
   currentPage: {
     type: String,
@@ -41,25 +43,28 @@ const emit = defineEmits(['navigate', 'open-panel', 'auth']);
     </button>
 
     <div class="app-nav__links">
-      <button class="app-nav__link" :class="{ 'is-active': currentPage === 'home' }" @click="emit('navigate', 'home')">
+      <PillButton class="app-nav__link" :active="currentPage === 'home'" @click="emit('navigate', 'home')">
         Home
-      </button>
-      <button class="app-nav__link" :class="{ 'is-active': currentPage === 'planet' }" @click="emit('navigate', 'planet')">
+      </PillButton>
+      <PillButton class="app-nav__link" :active="currentPage === 'planet'" @click="emit('navigate', 'planet')">
         Planet
-      </button>
+      </PillButton>
+      <PillButton class="app-nav__link" :active="currentPage === 'profile'" @click="emit('navigate', 'profile')">
+        Profile
+      </PillButton>
+      <PillButton class="app-nav__link" :active="currentPage === 'shop'" @click="emit('navigate', 'shop')">
+        Shop
+      </PillButton>
     </div>
 
     <div class="app-nav__actions">
-      <button class="app-nav__pill" @click="emit('open-panel', 'social')">Feed</button>
-      <button class="app-nav__pill" @click="emit('open-panel', 'store')">Store</button>
-      <button class="app-nav__pill" @click="emit('open-panel', 'profile')">Profile</button>
       <span class="app-nav__status" :class="wsConnected ? 'is-online' : 'is-offline'">
         {{ wsConnected ? 'Online' : 'Offline' }}
       </span>
       <span v-if="sceneMode === 'region-land'" class="app-nav__status app-nav__status--mode">
         {{ sandboxBuildMode ? 'Build Mode' : 'Region Land' }} · {{ activeRegionName || 'Active Region' }}
       </span>
-      <button v-if="!isAuthenticated" class="app-nav__cta" @click="emit('auth', 'login')">Sign in</button>
+      <PillButton v-if="!isAuthenticated" size="md" class="app-nav__cta" @click="emit('auth', 'login')">Sign in</PillButton>
       <span v-else class="app-nav__user">{{ username || 'Explorer' }}</span>
     </div>
   </nav>
