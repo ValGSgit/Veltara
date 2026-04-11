@@ -148,13 +148,28 @@ export const PLAN_STORAGE_BYTES = {
   studio: 50 * 1024 * 1024 * 1024,
 } as const;
 
+// ─── Cloudflare Free-Tier Budgets ────────────────────────────────────────────
+// R2 free tier: 10 GB storage, 1M Class A ops, 10M Class B ops per month
+export const R2_FREE_TIER = {
+  MAX_STORAGE_BYTES: 9 * 1024 * 1024 * 1024,   // 9 GB hard cap (leave 1 GB headroom)
+  MAX_CLASS_A_OPS: 900_000,                      // PUT/POST/LIST — 100K headroom
+  MAX_UPLOADS_PER_USER_PER_DAY: 5,
+  MAX_MEDIA_BYTES: 4 * 1024 * 1024,             // 4 MB per file (was 8 MB)
+} as const;
+
+// KV free tier: 100K reads/day, 1K writes/day
+export const KV_FREE_TIER = {
+  MAX_WRITES_PER_DAY: 1_000,
+  MAX_READS_PER_DAY: 100_000,
+} as const;
+
 // ─── WebSocket / Timing ───────────────────────────────────────────────────────
 
 export const WS_RECONNECT_BASE_MS = 1_000;
 export const WS_RECONNECT_MAX_MS = 30_000;
 export const WS_RECONNECT_JITTER_MS = 500;
-export const WORLD_STATE_CRON_INTERVAL_SEC = 60;
-export const EVENT_GENERATION_CRON_INTERVAL_HR = 2;
+export const WORLD_STATE_CRON_INTERVAL_SEC = 300; // 5 min (was 60s — saves KV writes)
+export const EVENT_GENERATION_CRON_INTERVAL_HR = 6; // 6 hr (was 2 hr — saves AI + KV ops)
 
 // ─── Planet Physics ───────────────────────────────────────────────────────────
 

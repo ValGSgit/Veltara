@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod';
-import { sanitizeHtml } from '@veltara/shared';
+import { sanitizeHtml, R2_FREE_TIER } from '@veltara/shared';
 import { handleCors, withCors } from './utils/cors.js';
 import { Errors, jsonResponse } from './utils/errors.js';
 import { requireAuth } from './middleware/auth.js';
@@ -25,6 +25,42 @@ interface Env {
   SUPABASE_SERVICE_KEY: string;
   R2_ASSETS: R2Bucket;
   KV_WORLD: KVNamespace;
+}
+
+// ─── R2 Free-Tier Budget Helpers ─────────────────────────────────────────────
+
+async function checkR2StorageBudget(env: Env): Promise<boolean> {
+  const raw = await env.KV_WORLD.get('r2:total_bytes');
+  const totalBytes = raw ? parseInt(raw) : 0;
+  return totalBytes < R2_FREE_TIER.MAX_STORAGE_BYTES;
+}
+
+async function trackR2Upload(env: Env, byteCount: number): Promise<void> {
+  const raw = await env.KV_WORLD.get('r2:total_bytes');
+  const current = raw ? parseInt(raw) : 0;
+  await env.KV_WORLD.put('r2:total_bytes', String(current + byteCount));
+}
+
+async function checkUserDailyUploadLimit(
+  userId: string,
+  env: Env,
+): Promise<boolean> {
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `r2:uploads:${userId}:${today}`;
+  const raw = await env.KV_WORLD.get(key);
+  const count = raw ? parseInt(raw) : 0;
+  return count < R2_FREE_TIER.MAX_UPLOADS_PER_USER_PER_DAY;
+}
+
+async function incrementUserDailyUpload(
+  userId: string,
+  env: Env,
+): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const key = `r2:uploads:${userId}:${today}`;
+  const raw = await env.KV_WORLD.get(key);
+  const count = raw ? parseInt(raw) : 0;
+  await env.KV_WORLD.put(key, String(count + 1), { expirationTtl: 86400 });
 }
 
 export default {
@@ -127,7 +163,7 @@ const ALLOWED_MEDIA_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'video/mp4', 'video/webm',
 ]);
-const MAX_MEDIA_BASE64_LEN = 10 * 1024 * 1024; // ~7.5 MB decoded
+const MAX_MEDIA_BASE64_LEN = Math.ceil(R2_FREE_TIER.MAX_MEDIA_BYTES * 4 / 3); // base64 overhead
 
 const CreatePostSchema = z.object({
   content: z.string().min(1).max(5000),
@@ -155,6 +191,18 @@ async function handleCreatePost(request: Request, env: Env): Promise<Response> {
       return Errors.badRequest('Unsupported media type. Allowed: JPEG, PNG, GIF, WebP, MP4, WebM');
     }
 
+    // Free-tier guard: check global R2 storage budget
+    if (!(await checkR2StorageBudget(env))) {
+      return Errors.badRequest('Media storage limit reached. Uploads are temporarily disabled.');
+    }
+
+    // Free-tier guard: per-user daily upload limit
+    if (!(await checkUserDailyUploadLimit(result.claims.sub, env))) {
+      return Errors.badRequest(
+        `Upload limit reached (max ${R2_FREE_TIER.MAX_UPLOADS_PER_USER_PER_DAY} per day).`,
+      );
+    }
+
     let binaryStr: string;
     try {
       binaryStr = atob(media_base64);
@@ -162,8 +210,10 @@ async function handleCreatePost(request: Request, env: Env): Promise<Response> {
       return Errors.badRequest('Invalid base64 media data');
     }
 
-    if (binaryStr.length > 8 * 1024 * 1024) {
-      return Errors.badRequest('Media file too large (max 8 MB)');
+    if (binaryStr.length > R2_FREE_TIER.MAX_MEDIA_BYTES) {
+      return Errors.badRequest(
+        `Media file too large (max ${R2_FREE_TIER.MAX_MEDIA_BYTES / (1024 * 1024)} MB)`,
+      );
     }
 
     const bytes = new Uint8Array(binaryStr.length);
@@ -178,6 +228,10 @@ async function handleCreatePost(request: Request, env: Env): Promise<Response> {
       httpMetadata: { contentType: media_type },
     });
     media_url = `/assets/${key}`;
+
+    // Track usage for free-tier budget
+    await trackR2Upload(env, bytes.length);
+    await incrementUserDailyUpload(result.claims.sub, env);
   }
 
   const db = createSupabaseClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);

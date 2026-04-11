@@ -45,8 +45,9 @@ preview_bucket_name = "veltara-assets-dev"
 binding = "AI"
 
 # ─── Cron Triggers ────────────────────────────────────────────
+# Free-tier safe: ~288 writes/day for world-state, ~4 writes/day for events
 [triggers]
-crons = ["*/1 * * * *", "0 */2 * * *"]
+crons = ["*/5 * * * *", "0 */6 * * *"]
 
 # ─── Routes ───────────────────────────────────────────────────
 [[routes]]

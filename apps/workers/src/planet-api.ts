@@ -75,9 +75,9 @@ export default {
 
   // ─── Cron Handler ────────────────────────────────────────────────────────────
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
-    if (event.cron === '*/1 * * * *') {
+    if (event.cron === '*/5 * * * *') {
       await updateWorldState(env);
-    } else if (event.cron === '0 */2 * * *') {
+    } else if (event.cron === '0 */6 * * *') {
       await generateWorldEvent(env);
     }
   },
