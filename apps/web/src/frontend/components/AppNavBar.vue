@@ -4,7 +4,7 @@ import PillButton from './ui/PillButton.vue';
 const props = defineProps({
   currentPage: {
     type: String,
-    default: 'home',
+    default: 'welcome',
   },
   isAuthenticated: {
     type: Boolean,
@@ -37,7 +37,7 @@ const emit = defineEmits(['navigate', 'open-panel', 'auth']);
 
 <template>
   <nav class="app-nav glass-panel" aria-label="Main navigation">
-    <button class="app-nav__brand" type="button" @click="emit('navigate', 'home')" aria-label="Go to home">
+    <button class="app-nav__brand" type="button" @click="emit('navigate', 'welcome')" aria-label="Go to welcome">
       <span class="app-nav__logo" aria-hidden="true">V</span>
       <span class="app-nav__title">VELTARA</span>
     </button>

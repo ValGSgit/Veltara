@@ -78,8 +78,8 @@ export function dashboardPage() {
             ${[
               { href: '#/docs', icon: '📖', label: 'Documentation' },
               { href: '#/playground', icon: '🛝', label: 'Playground' },
-              { href: '#/docs#rate-limits', icon: '⚡', label: 'Rate Limits' },
-              { href: '#/docs#changelog', icon: '📋', label: 'Changelog' },
+              { href: '#/docs?section=rate-limits', icon: '⚡', label: 'Rate Limits' },
+              { href: '#/docs?section=changelog', icon: '📋', label: 'Changelog' },
             ].map(l => `
               <a href="${l.href}" class="p-3 rounded-xl border border-gray-800 hover:border-gray-600
                         bg-gray-900 text-center transition-colors group">

@@ -10,16 +10,16 @@ export function docsPage() {
         <aside class="hidden md:block w-52 shrink-0">
           <div class="sticky top-20 space-y-1 text-sm">
             ${[
-              ['#getting-started', 'Getting Started'],
-              ['#sdk-reference', 'SDK Reference'],
-              ['#rest-api', 'REST API'],
-              ['#websocket', 'WebSocket Protocol'],
-              ['#rate-limits', 'Rate Limits'],
-              ['#changelog', 'Changelog'],
-            ].map(([href, label]) => `
-              <a href="${href}" class="block px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-900 transition-colors">
+              ['getting-started', 'Getting Started'],
+              ['sdk-reference', 'SDK Reference'],
+              ['rest-api', 'REST API'],
+              ['websocket', 'WebSocket Protocol'],
+              ['rate-limits', 'Rate Limits'],
+              ['changelog', 'Changelog'],
+            ].map(([section, label]) => `
+              <button type="button" data-doc-section="${section}" class="docs-nav-link block w-full px-3 py-1.5 rounded-lg text-left text-gray-400 hover:text-white hover:bg-gray-900 transition-colors">
                 ${label}
-              </a>
+              </button>
             `).join('')}
           </div>
         </aside>
@@ -214,4 +214,27 @@ export function docsPage() {
       </div>
     </div>
   `;
+}
+
+export function initDocs(query = new URLSearchParams()) {
+  const section = query.get('section');
+  document.querySelectorAll('[data-doc-section]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-doc-section');
+      const target = targetId ? document.getElementById(targetId) : null;
+      if (!target) return;
+      const nextHash = `#/docs?section=${encodeURIComponent(targetId)}`;
+      if (window.location.hash !== nextHash) window.history.replaceState({}, '', nextHash);
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  if (section) {
+    const target = document.getElementById(section);
+    if (target) {
+      requestAnimationFrame(() => {
+        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      });
+    }
+  }
 }

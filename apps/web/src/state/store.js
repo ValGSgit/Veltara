@@ -55,7 +55,7 @@ export const store = createStore({
   selectedSandboxObjectId: null,
   sceneMode: 'planet', // 'planet' | 'region-land'
   activeRegionLandId: null,
-  currentPage: 'home', // 'home' | 'planet'
+  currentPage: 'welcome', // 'welcome' | 'home' | 'planet'
   activePlanetId: 'black-hole', // 'black-hole' | 'veltara' | 'earth-test'
 
   // Chat

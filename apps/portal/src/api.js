@@ -3,7 +3,9 @@
  * Reuses the same auth and developer API endpoints.
  */
 
-const BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://veltara.gg';
+const envApiBase = String(import.meta.env.VITE_API_BASE_URL ?? '').trim();
+const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const BASE = envApiBase || (isLocalHost ? '' : 'https://veltara.gg');
 
 class PortalApi {
   token = localStorage.getItem('portal_token');
@@ -14,9 +16,21 @@ class PortalApi {
   async req(method, path, body) {
     const headers = { 'Content-Type': 'application/json' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-    const res = await fetch(`${BASE}${path}`, {
-      method, headers, body: body ? JSON.stringify(body) : undefined,
-    });
+    let res;
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        method, headers, body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (networkErr) {
+      const err = new Error(
+        isLocalHost
+          ? 'Unable to reach API from portal. Ensure docker compose services are running and Vite proxy is healthy.'
+          : 'Unable to reach API endpoint.'
+      );
+      err.code = 'NETWORK_ERROR';
+      err.cause = networkErr;
+      throw err;
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(data?.error?.message ?? `HTTP ${res.status}`), { status: res.status });
     return data;
@@ -50,19 +64,25 @@ class PortalApi {
     const res = await fetch(`${BASE}/v1/regions`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error?.message ?? `HTTP ${res.status}`);
+    return data;
   }
   async getWorldState(apiKey) {
     const res = await fetch(`${BASE}/v1/world-state`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error?.message ?? `HTTP ${res.status}`);
+    return data;
   }
   async getOnlineCount(apiKey) {
     const res = await fetch(`${BASE}/v1/players/online`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error?.message ?? `HTTP ${res.status}`);
+    return data;
   }
 }
 

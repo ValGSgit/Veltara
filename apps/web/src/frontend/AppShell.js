@@ -5,6 +5,7 @@ import { handleAuthSuccess as resolveAuthSuccess } from '../ui/auth.js';
 import AppNavBar from './components/AppNavBar.vue';
 import LobbyView from './views/LobbyView.vue';
 import HomeView from './views/HomeView.vue';
+import WelcomeView from './views/WelcomeView.vue';
 import AuthModalView from './components/AuthModalView.vue';
 import OnboardingModalView from './components/OnboardingModalView.vue';
 import PanelDrawerView from './components/PanelDrawerView.vue';
@@ -30,10 +31,12 @@ let mounted = false;
 
 function pageFromPath(pathname) {
   const path = String(pathname ?? '').toLowerCase();
+  if (path === '/' || path === '/welcome') return 'welcome';
   if (path === '/planet') return 'planet';
   if (path === '/profile') return 'profile';
   if (path === '/shop') return 'shop';
-  return 'home';
+  if (path === '/home') return 'home';
+  return 'welcome';
 }
 
 export function mountAppShell() {
@@ -47,6 +50,7 @@ export function mountAppShell() {
     components: {
       LobbyView,
       HomeView,
+      WelcomeView,
       AppNavBar,
       AuthModalView,
       OnboardingModalView,
@@ -56,7 +60,7 @@ export function mountAppShell() {
       CreatorStudioModal,
     },
     setup() {
-      const currentPage = computed(() => shellState.currentPage ?? 'home');
+      const currentPage = computed(() => shellState.currentPage ?? 'welcome');
       const isHomeSurface = computed(() => ['home', 'profile', 'shop'].includes(currentPage.value));
       const authModal = computed(() => shellState.authModal);
       const onboardingVisible = computed(() => Boolean(shellState.showOnboarding));
@@ -203,6 +207,14 @@ export function mountAppShell() {
           :player-name="playerName"
           :player-action="playerAction"
           :player-region="playerRegion"
+          :go-planet="goPlanet"
+        />
+
+        <WelcomeView
+          v-else-if="currentPage === 'welcome'"
+          :is-authenticated="shellState.isAuthenticated"
+          :open-auth="openAuth"
+          :go-home="() => navigate('home')"
           :go-planet="goPlanet"
         />
 

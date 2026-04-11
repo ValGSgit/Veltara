@@ -13,6 +13,7 @@ const DEFAULT_LOBBY_OPTIONS = {
 let lobbyOptionsHydrated = false;
 
 const PAGE_TO_PATH = {
+  welcome: '/welcome',
   home: '/home',
   planet: '/planet',
   profile: '/profile',
@@ -20,7 +21,7 @@ const PAGE_TO_PATH = {
 };
 
 function pushPageLocation(page, { replace = false } = {}) {
-  const path = PAGE_TO_PATH[page] ?? '/home';
+  const path = PAGE_TO_PATH[page] ?? '/welcome';
   if (typeof window === 'undefined') return;
   if (window.location.pathname === path) return;
   if (replace) window.history.replaceState({}, '', path);
@@ -52,6 +53,13 @@ export function useAppShellActions(shellState) {
   }
 
   function navigate(page, options = {}) {
+    if (page === 'welcome') {
+      store.set('currentPage', 'welcome');
+      store.set('activePanel', null);
+      pushPageLocation('welcome', options);
+      return;
+    }
+
     if (page === 'profile') {
       store.set('currentPage', 'profile');
       store.set('activePanel', 'profile');
@@ -151,7 +159,7 @@ export function useAppShellActions(shellState) {
   }
 
   function goPlanet() {
-    store.set('currentPage', 'planet');
+    navigate('planet');
   }
 
   function openModelLab() {

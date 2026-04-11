@@ -15,11 +15,18 @@ export function navigate(path) {
 
 export function initRouter(app) {
   function render() {
-    const hash = window.location.hash.slice(1) || '/';
-    const handler = routes.get(hash) ?? routes.get('/404') ?? (() => '<p>Not found</p>');
-    currentRoute = hash;
+    const rawHash = window.location.hash.slice(1) || '/';
+    const [path, query = ''] = rawHash.split('?');
+    const handler = routes.get(path) ?? routes.get('/404') ?? (() => '<p>Not found</p>');
+    currentRoute = path;
     app.innerHTML = handler();
-    app.dispatchEvent(new CustomEvent('route-changed', { detail: hash, bubbles: true }));
+    app.dispatchEvent(new CustomEvent('route-changed', {
+      detail: {
+        path,
+        query: new URLSearchParams(query),
+      },
+      bubbles: true,
+    }));
   }
 
   window.addEventListener('hashchange', render);

@@ -6,7 +6,7 @@ import './styles/portal.css';
 import { route, initRouter, navigate } from './router.js';
 import { landingPage } from './pages/landing.js';
 import { dashboardPage, initDashboard } from './pages/dashboard.js';
-import { docsPage } from './pages/docs.js';
+import { docsPage, initDocs } from './pages/docs.js';
 import { playgroundPage, initPlayground } from './pages/playground.js';
 import { portalApi } from './api.js';
 
@@ -56,7 +56,8 @@ initRouter(pageRoot);
 // ─── Post-route init ──────────────────────────────────────────────────────────
 
 pageRoot.addEventListener('route-changed', (e) => {
-  const path = e.detail;
+  const route = e.detail ?? { path: '/', query: new URLSearchParams() };
+  const path = route.path;
 
   // Highlight active nav link
   document.querySelectorAll('.nav-link').forEach((a) => {
@@ -68,6 +69,7 @@ pageRoot.addEventListener('route-changed', (e) => {
   // Run page-specific init
   if (path === '/dashboard') initDashboard();
   if (path === '/playground') initPlayground();
+  if (path === '/docs') initDocs(route.query);
 
   // Scroll to top
   window.scrollTo(0, 0);
