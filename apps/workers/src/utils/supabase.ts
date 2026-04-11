@@ -107,7 +107,13 @@ export function createSupabaseClient(url: string, serviceKey: string): SupabaseC
         return builder;
       },
       single() { _single = true; return buildQuery(table, _method, _body, _params, true) as Promise<{ data: unknown; error: unknown }>; },
-      maybeSingle() { return buildQuery(table, _method, _body, _params, false) as Promise<{ data: unknown; error: unknown }>; },
+      maybeSingle() {
+        return buildQuery(table, _method, _body, _params, false).then((result) => {
+          if (result.error) return { data: null, error: result.error };
+          if (Array.isArray(result.data)) return { data: result.data[0] ?? null, error: null };
+          return { data: result.data ?? null, error: null };
+        }) as Promise<{ data: unknown; error: unknown }>;
+      },
       then(resolve) {
         return buildQuery(table, _method, _body, _params, _single).then((r) => {
           resolve({ data: Array.isArray(r.data) ? r.data : r.data ? [r.data] : [], error: r.error, count: r.count });

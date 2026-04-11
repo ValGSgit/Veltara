@@ -1,6 +1,7 @@
 <script setup>
 import SocialHubView from '../components/SocialHubView.vue';
 import PanelCard from '../components/ui/PanelCard.vue';
+import EmptyState from '../components/ui/EmptyState.vue';
 
 defineProps({
   shellState: { type: Object, required: true },
@@ -51,7 +52,7 @@ defineProps({
 
     <PanelCard as="article" class="home-events">
       <div class="panel-title">Live events</div>
-      <div v-if="!activeEvents.length" class="empty-state">No active world events.</div>
+      <EmptyState v-if="!activeEvents.length" text="No active world events." />
       <div v-for="event in activeEvents.slice(0, 4)" :key="event.id ?? event.title" class="event-card">
         <div class="event-card__title">{{ event.title ?? 'World event' }}</div>
         <div class="event-card__desc">{{ event.description ?? event.text ?? 'A live system event is active.' }}</div>

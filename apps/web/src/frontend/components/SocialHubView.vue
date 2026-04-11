@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue';
 import PanelCard from './ui/PanelCard.vue';
 import PillButton from './ui/PillButton.vue';
+import PanelSectionHeader from './ui/PanelSectionHeader.vue';
+import EmptyState from './ui/EmptyState.vue';
 
 const props = defineProps({
   shellState: { type: Object, required: true },
@@ -72,12 +74,7 @@ const filteredMessages = computed(() => {
 
     <div class="social-hub__grid">
       <PanelCard as="aside" :compact="compactMode" class="region-rail" :class="{ 'social-hub__panel--hidden-mobile': !isActive('regions') }">
-        <div class="panel-heading panel-heading--compact">
-          <div>
-            <div class="panel-title">Regions</div>
-            <div class="panel-copy">Main social travel index</div>
-          </div>
-        </div>
+        <PanelSectionHeader title="Regions" copy="Main social travel index" compact />
         <div class="region-list">
           <button
             v-for="region in regions"
@@ -96,14 +93,9 @@ const filteredMessages = computed(() => {
       </PanelCard>
 
       <PanelCard as="article" :compact="compactMode" class="people-panel" :class="{ 'social-hub__panel--hidden-mobile': !isActive('nearby') }">
-        <div class="panel-heading panel-heading--compact">
-          <div>
-            <div class="panel-title">Nearby Players</div>
-            <div class="panel-copy">Social presence around your region</div>
-          </div>
-        </div>
+        <PanelSectionHeader title="Nearby Players" copy="Social presence around your region" compact />
         <div>
-          <div v-if="!nearbyPlayers.length" class="empty-state">No nearby players yet.</div>
+          <EmptyState v-if="!nearbyPlayers.length" text="No nearby players yet." />
           <TransitionGroup name="social-list" tag="div" class="player-stack">
           <div v-for="player in nearbyPlayers" :key="player.id" class="player-row-vue">
             <div class="player-avatar-vue" :style="{ background: player.color ?? '#6c63ff' }">
@@ -119,12 +111,7 @@ const filteredMessages = computed(() => {
       </PanelCard>
 
       <PanelCard as="article" :compact="compactMode" class="chat-panel-vue" :class="{ 'social-hub__panel--hidden-mobile': !isActive('chat') }">
-        <div class="panel-heading panel-heading--compact">
-          <div>
-            <div class="panel-title">Planet Chat</div>
-            <div class="panel-copy">Main social channel from Home</div>
-          </div>
-        </div>
+        <PanelSectionHeader title="Planet Chat" copy="Main social channel from Home" compact />
 
         <div class="chat-tabs">
           <PillButton class="chat-tab-vue" :active="shellState.chatTab === 'local'" @click="setChatTab('local')">Local</PillButton>
@@ -132,7 +119,7 @@ const filteredMessages = computed(() => {
         </div>
 
         <div role="log" aria-label="Chat messages" aria-live="polite">
-          <div v-if="!filteredMessages.length" class="empty-state">No messages yet.</div>
+          <EmptyState v-if="!filteredMessages.length" text="No messages yet." />
           <TransitionGroup name="social-list" tag="div" class="chat-stream">
           <div v-for="msg in filteredMessages" :key="msg.id ?? msg.timestamp ?? msg.text" class="chat-message-vue">
             <span class="chat-message-vue__author" :class="msg.is_npc ? 'chat-message-vue__author--npc' : ''">

@@ -159,51 +159,6 @@ body::after {
   z-index: 80;
 }
 
-.global-sidebar {
-  position: fixed;
-  left: 14px;
-  top: 88px;
-  z-index: 79;
-  width: 140px;
-  padding: 10px;
-  border-radius: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  pointer-events: auto;
-}
-
-.global-sidebar__title {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: #8ca4c7;
-  margin: 2px 2px 4px;
-}
-
-.global-sidebar__btn {
-  border: 1px solid rgba(165, 211, 255, 0.2);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #eaf4ff;
-  font-size: 0.76rem;
-  font-weight: 600;
-  text-align: left;
-  padding: 7px 9px;
-  cursor: pointer;
-}
-
-.global-sidebar__btn.is-active {
-  border-color: rgba(95, 210, 255, 0.55);
-  background: linear-gradient(135deg, rgba(55, 203, 255, 0.28), rgba(84, 111, 255, 0.25));
-}
-
-.global-sidebar__divider {
-  height: 1px;
-  background: rgba(148, 163, 184, 0.22);
-  margin: 4px 2px;
-}
-
 .app-nav__brand {
   display: flex;
   align-items: center;
@@ -412,12 +367,6 @@ body::after {
 }
 
 @media (max-width: 960px) {
-  .global-sidebar {
-    left: 10px;
-    top: 76px;
-    width: 118px;
-  }
-
   .app-nav {
     left: 50%;
     gap: 8px;

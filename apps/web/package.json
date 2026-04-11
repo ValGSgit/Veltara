@@ -9,13 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.103.0",
     "@veltara/shared": "workspace:*",
-    "vue": "^3.5.13",
-    "three": "^0.128.0"
+    "three": "^0.128.0",
+    "vue": "^3.5.13"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.2.4",
     "@types/three": "^0.128.0",
+    "@vitejs/plugin-vue": "^5.2.4",
     "typescript": "^5.4.5",
     "vite": "^5.3.1"
   }

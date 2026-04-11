@@ -1,6 +1,8 @@
 <script setup>
 import PanelCard from '../components/ui/PanelCard.vue';
 import PillButton from '../components/ui/PillButton.vue';
+import PanelSectionHeader from '../components/ui/PanelSectionHeader.vue';
+import EmptyState from '../components/ui/EmptyState.vue';
 
 defineProps({
   shellState: { type: Object, required: true },
@@ -48,12 +50,7 @@ defineProps({
 
     <main class="lobby-grid">
       <PanelCard v-if="lobbyViewOptions.showRegions" as="aside" class="region-rail">
-        <div class="panel-heading">
-          <div>
-            <div class="panel-title">Regions</div>
-            <div class="panel-copy">Tap a destination to teleport instantly.</div>
-          </div>
-        </div>
+        <PanelSectionHeader title="Regions" copy="Tap a destination to teleport instantly." />
 
         <div class="region-list">
           <button
@@ -77,12 +74,7 @@ defineProps({
 
       <section class="center-stack">
         <PanelCard as="article">
-          <div class="panel-heading panel-heading--compact">
-            <div>
-              <div class="panel-title">Lobby Layout</div>
-              <div class="panel-copy">Hide or show interface sections.</div>
-            </div>
-          </div>
+          <PanelSectionHeader title="Lobby Layout" copy="Hide or show interface sections." compact />
           <div class="flex flex-wrap gap-2 p-3">
             <PillButton as="label" class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showTopStats" @change="setLobbyViewOption('showTopStats', $event.target.checked)" /> Stats</PillButton>
             <PillButton as="label" class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showRegions" @change="setLobbyViewOption('showRegions', $event.target.checked)" /> Regions</PillButton>
@@ -133,14 +125,9 @@ defineProps({
 
         <div class="middle-grid">
           <PanelCard v-if="lobbyViewOptions.showWorldPulse" as="article" class="feed-panel">
-            <div class="panel-heading panel-heading--compact">
-              <div>
-                <div class="panel-title">World pulse</div>
-                <div class="panel-copy">Events and live world highlights</div>
-              </div>
-            </div>
+            <PanelSectionHeader title="World pulse" copy="Events and live world highlights" compact />
             <div class="event-stack">
-              <div v-if="!activeEvents.length" class="empty-state">No active world events.</div>
+              <EmptyState v-if="!activeEvents.length" text="No active world events." />
               <div v-for="event in activeEvents.slice(0, 4)" :key="event.id ?? event.title" class="event-card">
                 <div class="event-card__title">{{ event.title ?? 'World event' }}</div>
                 <div class="event-card__desc">{{ event.description ?? event.text ?? 'A live system event is active.' }}</div>
@@ -149,12 +136,7 @@ defineProps({
           </PanelCard>
 
           <PanelCard v-if="lobbyViewOptions.showSpotlight" as="article" class="spotlight-panel">
-            <div class="panel-heading panel-heading--compact">
-              <div>
-                <div class="panel-title">Spotlight</div>
-                <div class="panel-copy">Most active region right now</div>
-              </div>
-            </div>
+            <PanelSectionHeader title="Spotlight" copy="Most active region right now" compact />
             <div class="spotlight-region" :style="{ borderColor: featuredRegion.color + '55' }">
               <span class="spotlight-region__dot" :style="{ background: featuredRegion.color }"></span>
               <div>
@@ -169,7 +151,7 @@ defineProps({
             </div>
           </PanelCard>
           <PanelCard v-if="!lobbyViewOptions.showWorldPulse && !lobbyViewOptions.showSpotlight" as="article" class="feed-panel">
-            <div class="empty-state">Both center panels are hidden. Enable sections in Lobby Layout.</div>
+            <EmptyState text="Both center panels are hidden. Enable sections in Lobby Layout." />
           </PanelCard>
         </div>
       </section>
