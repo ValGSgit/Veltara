@@ -974,14 +974,6 @@ body::after {
 }
 
 
-#top-bar,
-#bottom-bar,
-#region-panel,
-#nearby-panel,
-#chat-panel {
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
-}
-
 #hud > * { pointer-events: auto; }
 #modals > * { pointer-events: auto; }
 #toasts {
@@ -1471,65 +1463,3 @@ body::after {
   outline-offset: 2px;
 }
 
-@media (max-width: 960px) {
-  #region-panel {
-    width: 100%;
-    top: 3rem;
-    bottom: auto;
-    height: 3.5rem;
-    border-right: none;
-    border-bottom: 1px solid var(--veltara-border);
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-
-  #region-panel #region-list {
-    display: flex;
-    gap: 0.5rem;
-    padding-right: 1rem;
-    white-space: nowrap;
-  }
-
-  #region-panel .region-btn {
-    min-width: 9rem;
-  }
-
-  #nearby-panel {
-    top: auto;
-    right: 0.5rem;
-    bottom: 4rem;
-    max-height: 9rem;
-    width: 14rem;
-    border: 1px solid var(--veltara-border);
-    border-radius: 0.75rem;
-  }
-
-  #chat-panel {
-    right: 0.5rem;
-    bottom: 4rem;
-    width: min(26rem, calc(100vw - 1rem));
-    height: 15.5rem !important;
-    border: 1px solid var(--veltara-border);
-    border-radius: 0.9rem;
-  }
-}
-
-@media (max-width: 640px) {
-  #top-bar {
-    padding-inline: 0.75rem;
-  }
-
-  #nearby-panel {
-    display: none;
-  }
-
-  #chat-panel {
-    left: 0.5rem;
-    right: 0.5rem;
-    width: auto;
-  }
-
-  #bottom-bar {
-    padding-inline: 0.6rem;
-  }
-}

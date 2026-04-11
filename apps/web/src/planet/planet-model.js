@@ -17,6 +17,8 @@ export class PlanetModel {
     this.lastProgress = null;
     this._effectRoots = [];
     this._blackHoleEffects = null;
+    this._earthEffects = null;
+    this._lights = [];
   }
 
   detectFormat(url) {
@@ -27,21 +29,47 @@ export class PlanetModel {
 
   setVisible(visible) {
     this.group.visible = Boolean(visible);
+    this._lights.forEach((l) => { l.visible = Boolean(visible); });
   }
 
-  createRadialTexture(stops) {
+  // ─── Texture Helpers ────────────────────────────────────────────────────────
+
+  createRadialTexture(stops, size = 512) {
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
+    canvas.width = size;
+    canvas.height = size;
     const ctx = canvas.getContext('2d');
-    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+    const half = size / 2;
+    const gradient = ctx.createRadialGradient(half, half, 0, half, half, half);
     stops.forEach(([offset, color]) => gradient.addColorStop(offset, color));
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillRect(0, 0, size, size);
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
     return texture;
   }
+
+  createRingTexture(size = 256) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, size, 0);
+    gradient.addColorStop(0.0, 'rgba(255, 220, 140, 0.0)');
+    gradient.addColorStop(0.15, 'rgba(255, 200, 100, 0.9)');
+    gradient.addColorStop(0.3, 'rgba(255, 140, 60, 1.0)');
+    gradient.addColorStop(0.5, 'rgba(200, 80, 30, 0.8)');
+    gradient.addColorStop(0.7, 'rgba(120, 40, 160, 0.5)');
+    gradient.addColorStop(0.85, 'rgba(60, 20, 120, 0.2)');
+    gradient.addColorStop(1.0, 'rgba(20, 5, 40, 0.0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, 1);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  // ─── Material Enhancement ───────────────────────────────────────────────────
 
   applyMaterialProfile(model) {
     model.traverse((child) => {
@@ -55,6 +83,7 @@ export class PlanetModel {
         material.depthWrite = true;
         material.depthTest = true;
         material.toneMapped = true;
+
         if ('map' in material && material.map) {
           material.map.colorSpace = THREE.SRGBColorSpace;
           material.map.anisotropy = 8;
@@ -63,24 +92,47 @@ export class PlanetModel {
           material.emissiveMap.colorSpace = THREE.SRGBColorSpace;
           material.emissiveMap.anisotropy = 8;
         }
+
+        // Boost color richness for Earth models
+        if (this.appearance === 'earth' && material.isMeshStandardMaterial) {
+          material.envMapIntensity = 0.4;
+          if (material.map) {
+            material.roughness = Math.min(material.roughness ?? 0.8, 0.85);
+            material.metalness = Math.max(material.metalness ?? 0.0, 0.02);
+          }
+        }
+
+        // Black hole model — make surfaces dark and emissive
+        if (this.appearance === 'black-hole') {
+          material.toneMapped = false;
+          if (material.isMeshStandardMaterial || material.isMeshPhongMaterial) {
+            material.emissiveIntensity = Math.max(material.emissiveIntensity ?? 0, 0.6);
+          }
+        }
+
         material.needsUpdate = true;
       });
     });
   }
 
+  // ─── Earth Atmosphere (multi-layer) ────────���────────────────────────────────
+
   buildEarthAtmosphere() {
-    const geometry = new THREE.SphereGeometry(PLANET_RADIUS * 1.042, 72, 72);
-    const material = new THREE.ShaderMaterial({
+    // Outer atmosphere — wide Fresnel glow
+    const outerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.055, 96, 96);
+    const outerMat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
       uniforms: {
-        uColorA: { value: new THREE.Color('#58b9ff') },
-        uColorB: { value: new THREE.Color('#9fe1ff') },
-        uStrength: { value: 0.85 },
+        uSunDirection: { value: new THREE.Vector3(1, 0.3, 0.5).normalize() },
+        uColorA: { value: new THREE.Color('#3a8eff') },
+        uColorB: { value: new THREE.Color('#a8d8ff') },
+        uTwilight: { value: new THREE.Color('#ff6030') },
+        uStrength: { value: 0.9 },
       },
-      vertexShader: `
+      vertexShader: /* glsl */ `
         varying vec3 vWorldPos;
         varying vec3 vWorldNormal;
         void main() {
@@ -90,74 +142,354 @@ export class PlanetModel {
           gl_Position = projectionMatrix * viewMatrix * worldPos;
         }
       `,
-      fragmentShader: `
+      fragmentShader: /* glsl */ `
+        uniform vec3 uSunDirection;
         uniform vec3 uColorA;
         uniform vec3 uColorB;
+        uniform vec3 uTwilight;
         uniform float uStrength;
         varying vec3 vWorldPos;
         varying vec3 vWorldNormal;
         void main() {
           vec3 viewDir = normalize(cameraPosition - vWorldPos);
-          float rim = pow(1.0 - max(dot(viewDir, normalize(vWorldNormal)), 0.0), 2.4);
-          vec3 color = mix(uColorA, uColorB, clamp(rim * 1.1, 0.0, 1.0));
-          gl_FragColor = vec4(color, rim * uStrength);
+          vec3 normal = normalize(vWorldNormal);
+          vec3 sunDir = normalize(uSunDirection);
+
+          float rim = pow(1.0 - max(dot(viewDir, normal), 0.0), 2.8);
+          float sunFacing = max(dot(normal, sunDir) * 0.5 + 0.5, 0.0);
+
+          // Twilight band at terminator
+          float terminator = dot(normal, sunDir);
+          float twilightBand = exp(-pow(terminator + 0.05, 2.0) * 18.0);
+
+          vec3 baseColor = mix(uColorA, uColorB, clamp(rim * 1.2, 0.0, 1.0));
+          vec3 color = mix(baseColor, uTwilight, twilightBand * 0.6);
+
+          float alpha = rim * uStrength * (0.35 + sunFacing * 0.65);
+          gl_FragColor = vec4(color, alpha);
         }
       `,
     });
-    const atmosphere = new THREE.Mesh(geometry, material);
-    atmosphere.name = 'earth-atmosphere';
-    this.group.add(atmosphere);
-    this._effectRoots.push(atmosphere);
+    const outerAtmo = new THREE.Mesh(outerGeo, outerMat);
+    outerAtmo.name = 'earth-atmosphere-outer';
+
+    // Inner atmosphere — tight bright rim
+    const innerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.025, 96, 96);
+    const innerMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      uniforms: {
+        uSunDirection: outerMat.uniforms.uSunDirection,
+        uStrength: { value: 0.5 },
+      },
+      vertexShader: outerMat.vertexShader,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uSunDirection;
+        uniform float uStrength;
+        varying vec3 vWorldPos;
+        varying vec3 vWorldNormal;
+        void main() {
+          vec3 viewDir = normalize(cameraPosition - vWorldPos);
+          vec3 normal = normalize(vWorldNormal);
+          float rim = pow(1.0 - max(dot(viewDir, normal), 0.0), 4.0);
+          float sunFacing = max(dot(normal, normalize(uSunDirection)), 0.0);
+          vec3 color = vec3(0.6, 0.85, 1.0);
+          float alpha = rim * uStrength * (0.5 + sunFacing * 0.5);
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+    });
+    const innerAtmo = new THREE.Mesh(innerGeo, innerMat);
+    innerAtmo.name = 'earth-atmosphere-inner';
+
+    this.group.add(outerAtmo, innerAtmo);
+    this._effectRoots.push(outerAtmo, innerAtmo);
+    this._earthEffects = { outerAtmo, innerAtmo, sunUniform: outerMat.uniforms.uSunDirection };
   }
+
+  // ─── Earth Lighting ─────────────────────────────────────────────────────────
+
+  buildEarthLighting() {
+    // Key sunlight
+    const sun = new THREE.DirectionalLight(0xfff4e0, 2.2);
+    sun.position.set(20, 8, 15);
+    sun.name = 'earth-sun';
+    this.scene.add(sun);
+
+    // Hemisphere for natural ambient (sky blue + ground dark blue)
+    const hemi = new THREE.HemisphereLight(0x6699cc, 0x111122, 0.35);
+    hemi.name = 'earth-hemi';
+    this.scene.add(hemi);
+
+    // Subtle fill from behind to define outline on dark side
+    const fill = new THREE.DirectionalLight(0x223355, 0.25);
+    fill.position.set(-15, -4, -10);
+    fill.name = 'earth-fill';
+    this.scene.add(fill);
+
+    this._lights.push(sun, hemi, fill);
+    this._earthLights = { sun, hemi, fill };
+  }
+
+  // ─── Black Hole Effects (overhauled) ────────────────────────────────────────
 
   buildBlackHoleEffects() {
-    const outerTexture = this.createRadialTexture([
-      [0.0, 'rgba(255, 244, 220, 0.86)'],
-      [0.15, 'rgba(255, 170, 100, 0.45)'],
-      [0.45, 'rgba(109, 54, 182, 0.14)'],
+    // ── 1. Dark event horizon core ──
+    const coreGeo = new THREE.SphereGeometry(PLANET_RADIUS * 0.42, 48, 48);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      depthWrite: true,
+    });
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.name = 'bh-core';
+    core.renderOrder = -1;
+
+    // ── 2. Hot inner core glow ──
+    const hotCoreTexture = this.createRadialTexture([
+      [0.0, 'rgba(255, 255, 240, 0.95)'],
+      [0.08, 'rgba(255, 220, 160, 0.7)'],
+      [0.25, 'rgba(255, 140, 60, 0.3)'],
+      [0.5, 'rgba(180, 60, 200, 0.08)'],
       [1.0, 'rgba(0, 0, 0, 0)'],
-    ]);
+    ], 512);
+    const hotCore = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: hotCoreTexture,
+      color: 0xffdda0,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }));
+    hotCore.scale.setScalar(PLANET_RADIUS * 2.2);
+    hotCore.name = 'bh-hot-core';
 
+    // ── 3. Corona glow (warm orange) ──
+    const coronaTexture = this.createRadialTexture([
+      [0.0, 'rgba(255, 240, 210, 0.8)'],
+      [0.1, 'rgba(255, 180, 100, 0.5)'],
+      [0.3, 'rgba(255, 120, 60, 0.2)'],
+      [0.55, 'rgba(160, 60, 180, 0.08)'],
+      [1.0, 'rgba(0, 0, 0, 0)'],
+    ], 512);
     const corona = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: outerTexture,
-      color: 0xffb07a,
+      map: coronaTexture,
+      color: 0xffb88a,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.32,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      toneMapped: true,
+      toneMapped: false,
     }));
-    corona.scale.setScalar(PLANET_RADIUS * 4.4);
+    corona.scale.setScalar(PLANET_RADIUS * 4.8);
+    corona.name = 'bh-corona';
 
+    // ── 4. Wide purple lens flare ──
+    const lensTexture = this.createRadialTexture([
+      [0.0, 'rgba(140, 100, 255, 0.5)'],
+      [0.2, 'rgba(100, 60, 200, 0.25)'],
+      [0.5, 'rgba(60, 20, 140, 0.08)'],
+      [1.0, 'rgba(0, 0, 0, 0)'],
+    ], 512);
     const lens = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: outerTexture,
-      color: 0x8a63ff,
+      map: lensTexture,
+      color: 0x9070ff,
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.22,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      toneMapped: true,
+      toneMapped: false,
     }));
-    lens.scale.setScalar(PLANET_RADIUS * 6.2);
+    lens.scale.setScalar(PLANET_RADIUS * 7.0);
+    lens.name = 'bh-lens';
 
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(PLANET_RADIUS * 0.9, PLANET_RADIUS * 0.09, 24, 160),
-      new THREE.MeshBasicMaterial({
-        color: 0xff9a5f,
-        transparent: true,
-        opacity: 0.18,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: true,
-      }),
-    );
-    ring.rotation.x = Math.PI * 0.42;
+    // ── 5. Main accretion ring with shader ──
+    const ringGeo = new THREE.TorusGeometry(PLANET_RADIUS * 1.6, PLANET_RADIUS * 0.22, 4, 200);
+    const ringMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+      uniforms: {
+        uTime: { value: 0 },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        varying float vAngle;
+        void main() {
+          vUv = uv;
+          // Compute angle around the torus for color gradient
+          vAngle = atan(position.z, position.x);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform float uTime;
+        varying vec2 vUv;
+        varying float vAngle;
+        void main() {
+          // Radial position in tube cross-section (0=inner, 1=outer)
+          float tubeDist = abs(vUv.y - 0.5) * 2.0;
 
-    this.group.add(corona, lens, ring);
-    this._effectRoots.push(corona, lens, ring);
-    this._blackHoleEffects = { corona, lens, ring };
+          // Hot inner → cool outer color gradient
+          vec3 hotColor = vec3(1.0, 0.85, 0.5);   // bright yellow-white
+          vec3 midColor = vec3(1.0, 0.45, 0.15);   // orange
+          vec3 coolColor = vec3(0.5, 0.15, 0.7);   // purple
+
+          vec3 color = mix(hotColor, midColor, smoothstep(0.0, 0.5, tubeDist));
+          color = mix(color, coolColor, smoothstep(0.4, 1.0, tubeDist));
+
+          // Animated brightness variation around the ring
+          float wave = sin(vAngle * 3.0 + uTime * 2.5) * 0.15 + 0.85;
+          float flicker = sin(vAngle * 7.0 - uTime * 4.0) * 0.08 + 0.92;
+
+          // Fade at tube edges
+          float edgeFade = 1.0 - smoothstep(0.6, 1.0, tubeDist);
+
+          float alpha = edgeFade * wave * flicker * 0.55;
+          gl_FragColor = vec4(color * 1.4, alpha);
+        }
+      `,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI * 0.44;
+    ring.name = 'bh-ring';
+
+    // ── 6. Secondary thin outer ring ──
+    const ring2Geo = new THREE.TorusGeometry(PLANET_RADIUS * 2.3, PLANET_RADIUS * 0.06, 3, 180);
+    const ring2Mat = new THREE.MeshBasicMaterial({
+      color: 0xcc70ff,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
+    ring2.rotation.x = Math.PI * 0.44;
+    ring2.name = 'bh-ring-outer';
+
+    // ── 7. Gravitational lensing ring (bright edge halo) ──
+    const lensRingGeo = new THREE.RingGeometry(PLANET_RADIUS * 0.95, PLANET_RADIUS * 1.15, 96);
+    const lensRingMat = new THREE.MeshBasicMaterial({
+      color: 0xffeedd,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const lensRing = new THREE.Mesh(lensRingGeo, lensRingMat);
+    lensRing.name = 'bh-lens-ring';
+
+    // ── 8. Particle streams (orbiting debris) ──
+    const particleCount = 600;
+    const pPositions = new Float32Array(particleCount * 3);
+    const pColors = new Float32Array(particleCount * 3);
+    const pSizes = new Float32Array(particleCount);
+    const pAngles = new Float32Array(particleCount);   // store initial angle
+    const pRadii = new Float32Array(particleCount);    // orbital radius
+    const pSpeeds = new Float32Array(particleCount);   // orbital speed
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = PLANET_RADIUS * (0.9 + Math.random() * 1.8);
+      const y = (Math.random() - 0.5) * PLANET_RADIUS * 0.35;
+
+      pPositions[i * 3] = Math.cos(angle) * r;
+      pPositions[i * 3 + 1] = y;
+      pPositions[i * 3 + 2] = Math.sin(angle) * r;
+
+      pAngles[i] = angle;
+      pRadii[i] = r;
+      // Kepler-ish: inner orbits faster
+      pSpeeds[i] = (0.3 + Math.random() * 0.5) / Math.max(r / PLANET_RADIUS, 0.5);
+
+      const t = Math.random();
+      const c = new THREE.Color().lerpColors(
+        new THREE.Color(0xffcc80),
+        new THREE.Color(0x8844cc),
+        t,
+      );
+      pColors[i * 3] = c.r;
+      pColors[i * 3 + 1] = c.g;
+      pColors[i * 3 + 2] = c.b;
+
+      pSizes[i] = 1.0 + Math.random() * 2.5;
+    }
+
+    const pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+    pGeo.setAttribute('color', new THREE.BufferAttribute(pColors, 3));
+    pGeo.setAttribute('size', new THREE.BufferAttribute(pSizes, 1));
+
+    const pMat = new THREE.PointsMaterial({
+      size: 0.12,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    });
+    const particles = new THREE.Points(pGeo, pMat);
+    particles.rotation.x = Math.PI * 0.44; // same tilt as accretion ring
+    particles.name = 'bh-particles';
+
+    // ── 9. Jet streams (polar plasma jets) ──
+    const jetGeo = new THREE.ConeGeometry(PLANET_RADIUS * 0.08, PLANET_RADIUS * 3.5, 8, 1, true);
+    const jetMat = new THREE.MeshBasicMaterial({
+      color: 0x88aaff,
+      transparent: true,
+      opacity: 0.06,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const jetUp = new THREE.Mesh(jetGeo, jetMat.clone());
+    jetUp.position.y = PLANET_RADIUS * 2.0;
+    jetUp.name = 'bh-jet-up';
+
+    const jetDown = new THREE.Mesh(jetGeo, jetMat.clone());
+    jetDown.position.y = -PLANET_RADIUS * 2.0;
+    jetDown.rotation.z = Math.PI;
+    jetDown.name = 'bh-jet-down';
+
+    this.group.add(core, hotCore, corona, lens, ring, ring2, lensRing, particles, jetUp, jetDown);
+    this._effectRoots.push(core, hotCore, corona, lens, ring, ring2, lensRing, particles, jetUp, jetDown);
+
+    this._blackHoleEffects = {
+      core, hotCore, corona, lens, ring, ringMat, ring2, lensRing,
+      particles, pAngles, pRadii, pSpeeds,
+      jetUp, jetDown,
+    };
   }
+
+  // ��── Black Hole Lighting ───────────��────────────────────────────────────────
+
+  buildBlackHoleLighting() {
+    // Point light inside the accretion glow
+    const accretionGlow = new THREE.PointLight(0xff8844, 1.5, PLANET_RADIUS * 12);
+    accretionGlow.position.set(0, 0, 0);
+    accretionGlow.name = 'bh-glow-light';
+    this.scene.add(accretionGlow);
+
+    // Subtle rim light from behind
+    const rim = new THREE.DirectionalLight(0x6644aa, 0.3);
+    rim.position.set(-10, 5, -10);
+    rim.name = 'bh-rim';
+    this.scene.add(rim);
+
+    this._lights.push(accretionGlow, rim);
+  }
+
+  // ─── Model Loading ────────────��───────────────────────���─────────────────────
 
   async loadIfNeeded(options = {}) {
     const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
@@ -193,9 +525,16 @@ export class PlanetModel {
               this.group.add(model);
               this._effectRoots = [];
               this._blackHoleEffects = null;
+              this._earthEffects = null;
+
               if (this.appearance === 'black-hole') {
                 this.buildBlackHoleEffects();
+                this.buildBlackHoleLighting();
+              } else if (this.appearance === 'earth') {
+                this.buildEarthAtmosphere();
+                this.buildEarthLighting();
               }
+
               this.isLoaded = true;
               this.lastProgress = { loaded: 1, total: 1, ratio: 1 };
               onProgress?.(this.lastProgress);
@@ -214,28 +553,85 @@ export class PlanetModel {
       })
       .catch(() => false)
       .then((result) => {
-        if (!result) this.loaderPromise = null; // allow retry on failure
+        if (!result) this.loaderPromise = null;
         return result;
       });
 
     return this.loaderPromise;
   }
 
+  // ─── Per-Frame Update ─────────────��─────────────────────────────────────────
+
   update(elapsed) {
     if (!this.group.visible || !this.isLoaded) return;
     this.group.rotation.y = elapsed * this.spinSpeed;
 
     if (this._blackHoleEffects) {
-      const pulse = 0.96 + Math.sin(elapsed * 1.8) * 0.04;
-      this._blackHoleEffects.corona.scale.setScalar((PLANET_RADIUS * 4.4) * pulse);
-      this._blackHoleEffects.lens.scale.setScalar((PLANET_RADIUS * 6.2) * (1.02 - (pulse - 0.96)));
-      this._blackHoleEffects.ring.rotation.z = elapsed * 0.2;
-      this._blackHoleEffects.corona.material.opacity = 0.24 + Math.sin(elapsed * 2.1) * 0.05;
-      this._blackHoleEffects.lens.material.opacity = 0.17 + Math.cos(elapsed * 1.5) * 0.04;
+      this._updateBlackHole(elapsed);
     }
   }
 
+  /** Sync sun direction from the main scene's day/night cycle. */
+  setSunDirection(dir) {
+    if (this._earthEffects?.sunUniform) {
+      this._earthEffects.sunUniform.value.copy(dir);
+    }
+    if (this._earthLights?.sun) {
+      this._earthLights.sun.position.copy(dir).multiplyScalar(50);
+    }
+  }
+
+  _updateBlackHole(elapsed) {
+    const fx = this._blackHoleEffects;
+
+    // Pulsing glow
+    const pulse = 0.94 + Math.sin(elapsed * 1.8) * 0.06;
+    const pulse2 = 0.97 + Math.sin(elapsed * 2.6 + 1.0) * 0.03;
+
+    fx.hotCore.scale.setScalar(PLANET_RADIUS * 2.2 * pulse);
+    fx.hotCore.material.opacity = 0.38 + Math.sin(elapsed * 3.0) * 0.08;
+
+    fx.corona.scale.setScalar(PLANET_RADIUS * 4.8 * pulse2);
+    fx.corona.material.opacity = 0.28 + Math.sin(elapsed * 2.1) * 0.06;
+
+    fx.lens.scale.setScalar(PLANET_RADIUS * 7.0 * (1.03 - (pulse - 0.94) * 0.3));
+    fx.lens.material.opacity = 0.18 + Math.cos(elapsed * 1.5) * 0.05;
+
+    // Accretion ring rotation + shader time
+    fx.ring.rotation.z = elapsed * 0.35;
+    fx.ringMat.uniforms.uTime.value = elapsed;
+    fx.ring2.rotation.z = elapsed * -0.18;
+
+    // Lensing ring subtle pulse
+    fx.lensRing.material.opacity = 0.10 + Math.sin(elapsed * 2.5) * 0.05;
+
+    // Orbit particles
+    const positions = fx.particles.geometry.attributes.position.array;
+    const count = positions.length / 3;
+    for (let i = 0; i < count; i++) {
+      const angle = fx.pAngles[i] + elapsed * fx.pSpeeds[i];
+      const r = fx.pRadii[i];
+      const wobble = Math.sin(elapsed * 1.5 + i * 0.1) * PLANET_RADIUS * 0.03;
+      positions[i * 3] = Math.cos(angle) * r;
+      positions[i * 3 + 1] = wobble;
+      positions[i * 3 + 2] = Math.sin(angle) * r;
+    }
+    fx.particles.geometry.attributes.position.needsUpdate = true;
+
+    // Jet pulse
+    const jetScale = 1.0 + Math.sin(elapsed * 2.0) * 0.15;
+    fx.jetUp.scale.set(1, jetScale, 1);
+    fx.jetDown.scale.set(1, jetScale, 1);
+    fx.jetUp.material.opacity = 0.04 + Math.sin(elapsed * 3.2) * 0.03;
+    fx.jetDown.material.opacity = 0.04 + Math.sin(elapsed * 3.2 + 0.5) * 0.03;
+  }
+
+  // ─── Cleanup ───────────────────────────────────────────���────────────────────
+
   dispose() {
+    this._lights.forEach((l) => this.scene.remove(l));
+    this._lights = [];
+
     this.group.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.geometry?.dispose?.();
@@ -250,6 +646,9 @@ export class PlanetModel {
         }
       } else if (child instanceof THREE.Sprite) {
         child.material?.map?.dispose?.();
+        child.material?.dispose?.();
+      } else if (child instanceof THREE.Points) {
+        child.geometry?.dispose?.();
         child.material?.dispose?.();
       }
     });
