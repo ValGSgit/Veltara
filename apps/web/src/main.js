@@ -177,8 +177,8 @@ function setSceneMode(nextMode, regionId = null) {
     earthPlanet.setVisible(usingEarth);
     blackHolePlanet.setVisible(usingBlackHole);
     regions.markers.forEach((group) => { group.visible = usingVeltara; });
-    players.instancedMesh.visible = true;
-    minimap.canvas.style.display = 'block';
+    players.instancedMesh.visible = usingVeltara;
+    minimap.canvas.style.display = usingVeltara ? 'block' : 'none';
 
     regionLand.leave();
     restoreCameraState(planetCameraSnapshot);
@@ -227,6 +227,8 @@ async function setActivePlanet(planetId) {
   earthPlanet.setVisible(usingEarth);
   blackHolePlanet.setVisible(usingBlackHole);
   regions.markers.forEach((group) => { group.visible = usingVeltara; });
+  players.instancedMesh.visible = usingVeltara;
+  minimap.canvas.style.display = usingVeltara ? 'block' : 'none';
 }
 
 function enterRegionLand(regionId) {

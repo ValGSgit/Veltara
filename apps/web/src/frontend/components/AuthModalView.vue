@@ -30,10 +30,20 @@ async function submit() {
   loading.value = true;
   error.value = '';
 
+  const normalizedEmail = String(email.value ?? '').trim().toLowerCase();
+  const normalizedUsername = String(username.value ?? '').trim();
+  const normalizedPassword = String(password.value ?? '');
+
+  if (!normalizedEmail || !normalizedPassword || (!isLogin.value && !normalizedUsername)) {
+    error.value = 'Please complete all required fields.';
+    loading.value = false;
+    return;
+  }
+
   try {
     const payload = isLogin.value
-      ? await api.login(email.value, password.value)
-      : await api.register(username.value, email.value, password.value);
+      ? await api.login(normalizedEmail, normalizedPassword)
+      : await api.register(normalizedUsername, normalizedEmail, normalizedPassword);
 
     store.update({ user: payload.user, isAuthenticated: true });
     toast.success(isLogin.value ? `Welcome back, ${payload.user.username}!` : 'Welcome to Veltara!');

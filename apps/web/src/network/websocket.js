@@ -5,8 +5,23 @@
 
 import { parseServerMessage, exponentialBackoff } from '@veltara/shared';
 
-const WS_BASE = import.meta.env.VITE_WS_BASE_URL
-  ?? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
+const envWsBase = String(import.meta.env.VITE_WS_BASE_URL ?? '').trim();
+const envApiBase = String(import.meta.env.VITE_API_BASE_URL ?? '').trim();
+const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+function deriveWsBaseFromApi(apiBase) {
+  if (!apiBase) return '';
+  if (apiBase.startsWith('https://')) return `wss://${apiBase.slice('https://'.length)}`;
+  if (apiBase.startsWith('http://')) return `ws://${apiBase.slice('http://'.length)}`;
+  return '';
+}
+
+const WS_BASE =
+  envWsBase
+  || deriveWsBaseFromApi(envApiBase)
+  || (isLocalHost
+    ? 'wss://localhost:8787'
+    : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`);
 
 export class RegionSocket {
   /** @type {WebSocket|null} */

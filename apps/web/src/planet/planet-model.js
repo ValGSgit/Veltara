@@ -95,10 +95,17 @@ export class PlanetModel {
 
         // Boost color richness for Earth models
         if (this.appearance === 'earth' && material.isMeshStandardMaterial) {
-          material.envMapIntensity = 0.4;
+          material.envMapIntensity = 0.62;
           if (material.map) {
-            material.roughness = Math.min(material.roughness ?? 0.8, 0.85);
-            material.metalness = Math.max(material.metalness ?? 0.0, 0.02);
+            material.roughness = Math.min(material.roughness ?? 0.75, 0.72);
+            material.metalness = Math.max(material.metalness ?? 0.0, 0.01);
+            if (material.emissive && material.emissive.setScalar) {
+              material.emissive.setScalar(0.03);
+            }
+          } else {
+            // Fallback tint when no albedo texture exists.
+            material.color = material.color ?? new THREE.Color(0x7aa2d8);
+            material.color.offsetHSL(0, 0.12, 0.04);
           }
         }
 

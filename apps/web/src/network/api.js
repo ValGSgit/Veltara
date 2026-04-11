@@ -3,7 +3,9 @@
  * Handles auth tokens, error formatting, and base URL.
  */
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+const envApiBase = String(import.meta.env.VITE_API_BASE_URL ?? '').trim();
+const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const BASE_URL = envApiBase || (isLocalHost ? 'https://localhost:8787' : '');
 
 class ApiClient {
   token = null;
@@ -20,11 +22,19 @@ class ApiClient {
     const headers = { 'Content-Type': 'application/json' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
-    const res = await fetch(`${BASE_URL}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let res;
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (networkErr) {
+      const err = new Error('Unable to reach Veltara API. Check backend/proxy and VITE_API_BASE_URL.');
+      err.code = 'NETWORK_ERROR';
+      err.cause = networkErr;
+      throw err;
+    }
 
     const data = await res.json().catch(() => ({}));
 

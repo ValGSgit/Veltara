@@ -1,14 +1,26 @@
 <script setup>
+import SocialHubView from '../components/SocialHubView.vue';
+
 defineProps({
+  shellState: { type: Object, required: true },
   activeRegion: { type: Object, required: true },
+  regions: { type: Array, required: true },
   featuredRegion: { type: Object, required: true },
+  nearbyPlayers: { type: Array, required: true },
+  chatMessages: { type: Array, required: true },
   totalOnline: { type: Number, required: true },
   clock: { type: String, required: true },
   activeEvents: { type: Array, required: true },
   quickRegion: { type: Function, required: true },
+  teleport: { type: Function, required: true },
   openPanel: { type: Function, required: true },
+  setChatTab: { type: Function, required: true },
+  sendChat: { type: Function, required: true },
   goPlanet: { type: Function, required: true },
   isAuthenticated: { type: Boolean, required: true },
+  playerName: { type: Function, required: true },
+  playerAction: { type: Function, required: true },
+  playerRegion: { type: Function, required: true },
 });
 </script>
 
@@ -44,5 +56,18 @@ defineProps({
         <div class="event-card__desc">{{ event.description ?? event.text ?? 'A live system event is active.' }}</div>
       </div>
     </article>
+
+    <SocialHubView
+      :shell-state="shellState"
+      :regions="regions"
+      :nearby-players="nearbyPlayers"
+      :chat-messages="chatMessages"
+      :teleport="teleport"
+      :set-chat-tab="setChatTab"
+      :send-chat="sendChat"
+      :player-name="playerName"
+      :player-action="playerAction"
+      :player-region="playerRegion"
+    />
   </section>
 </template>

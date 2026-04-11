@@ -10,6 +10,7 @@ import OnboardingModalView from './components/OnboardingModalView.vue';
 import PanelDrawerView from './components/PanelDrawerView.vue';
 import SandboxOverlay from './components/sandbox/SandboxOverlay.vue';
 import ModelLabModal from './components/ModelLabModal.vue';
+import CreatorStudioModal from './components/CreatorStudioModal.vue';
 import { useAppShellActions } from './composables/useAppShellActions.js';
 import {
   formatClock,
@@ -44,6 +45,7 @@ export function mountAppShell() {
       PanelDrawerView,
       SandboxOverlay,
       ModelLabModal,
+      CreatorStudioModal,
     },
     setup() {
       const currentPage = computed(() => shellState.currentPage ?? 'home');
@@ -144,7 +146,7 @@ export function mountAppShell() {
     },
     template: `
       <div>
-        <aside class="global-sidebar glass-panel" role="navigation" aria-label="Quick access sidebar">
+        <aside v-if="!(currentPage === 'planet' && shellState.activePlanetId === 'black-hole')" class="global-sidebar glass-panel" role="navigation" aria-label="Quick access sidebar">
           <div class="global-sidebar__title" aria-hidden="true">Navigate</div>
           <button
             class="global-sidebar__btn"
@@ -165,7 +167,7 @@ export function mountAppShell() {
           <button class="global-sidebar__btn" @click="openPanel('store')">Store</button>
           <button class="global-sidebar__btn" @click="openPanel('profile')">Profile</button>
           <button class="global-sidebar__btn" @click="openPanel('settings')">Settings</button>
-          <button class="global-sidebar__btn" @click="openModelLab">Model Lab</button>
+          <button class="global-sidebar__btn" @click="openCreatorStudio">Creator Hub</button>
         </aside>
 
         <AppNavBar
@@ -183,20 +185,31 @@ export function mountAppShell() {
 
         <HomeView
           v-if="currentPage === 'home'"
+          :shell-state="shellState"
           :active-region="activeRegion"
+          :regions="regions"
           :featured-region="featuredRegion"
+          :nearby-players="nearbyPlayers"
+          :chat-messages="chatMessages"
           :total-online="totalOnline"
           :clock="clock"
           :active-events="activeEvents"
           :quick-region="quickRegion"
+          :teleport="teleport"
           :open-panel="openPanel"
+          :set-chat-tab="setChatTab"
+          :send-chat="sendChat"
           :is-authenticated="shellState.isAuthenticated"
+          :player-name="playerName"
+          :player-action="playerAction"
+          :player-region="playerRegion"
           :go-planet="goPlanet"
         />
 
         <LobbyView
-          v-else
+          v-else-if="shellState.activePlanetId !== 'black-hole'"
           :shell-state="shellState"
+          :lobby-view-options="shellState.lobbyViewOptions"
           :regions="regions"
           :active-region="activeRegion"
           :nearby-players="nearbyPlayers"
@@ -210,6 +223,7 @@ export function mountAppShell() {
           :set-chat-tab="setChatTab"
           :send-chat="sendChat"
           :quick-region="quickRegion"
+          :set-lobby-view-option="setLobbyViewOption"
           :player-name="playerName"
           :player-action="playerAction"
           :player-region="playerRegion"
@@ -253,6 +267,12 @@ export function mountAppShell() {
         <ModelLabModal
           :open="Boolean(shellState.modelLabOpen)"
           @close="closeModelLab"
+        />
+
+        <CreatorStudioModal
+          :open="Boolean(shellState.creatorStudioOpen)"
+          @close="closeCreatorStudio"
+          @open-model-lab="openModelLab"
         />
 
         <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land'" role="toolbar" aria-label="Planet switcher">

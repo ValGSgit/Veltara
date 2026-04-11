@@ -67,6 +67,16 @@ export const store = createStore({
   authModal: null, // 'login' | 'register' | null
   showOnboarding: false,
   modelLabOpen: false,
+  creatorStudioOpen: false,
+  lobbyViewOptions: {
+    showTopStats: true,
+    showRegions: true,
+    showWorldPulse: true,
+    showSpotlight: true,
+    showNearbyPlayers: true,
+    showChat: true,
+    showFooterHints: true,
+  },
 
   // Connection
   wsConnected: false,

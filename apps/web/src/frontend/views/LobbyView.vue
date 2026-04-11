@@ -1,6 +1,7 @@
 <script setup>
 defineProps({
   shellState: { type: Object, required: true },
+  lobbyViewOptions: { type: Object, required: true },
   regions: { type: Array, required: true },
   activeRegion: { type: Object, required: true },
   nearbyPlayers: { type: Array, required: true },
@@ -14,6 +15,7 @@ defineProps({
   setChatTab: { type: Function, required: true },
   sendChat: { type: Function, required: true },
   quickRegion: { type: Function, required: true },
+  setLobbyViewOption: { type: Function, required: true },
   playerName: { type: Function, required: true },
   playerAction: { type: Function, required: true },
   playerRegion: { type: Function, required: true },
@@ -32,10 +34,12 @@ defineProps({
       </div>
 
       <div class="topbar-stats">
+        <template v-if="lobbyViewOptions.showTopStats">
         <div class="status-pill status-pill--glow">● {{ totalOnline }} online</div>
         <div class="status-pill">{{ regions.length }} regions</div>
         <div class="status-pill" :class="{ 'status-pill--accent': activeEvents.length }">✦ {{ activeEvents.length }} events</div>
         <div class="status-pill status-pill--mono">{{ clock }}</div>
+        </template>
       </div>
 
       <div class="topbar-actions">
@@ -47,7 +51,7 @@ defineProps({
     </header>
 
     <main class="lobby-grid">
-      <aside class="glass-panel region-rail">
+      <aside v-if="lobbyViewOptions.showRegions" class="glass-panel region-rail">
         <div class="panel-heading">
           <div>
             <div class="panel-title">Regions</div>
@@ -76,6 +80,24 @@ defineProps({
       </aside>
 
       <section class="center-stack">
+        <article class="glass-panel">
+          <div class="panel-heading panel-heading--compact">
+            <div>
+              <div class="panel-title">Lobby Layout</div>
+              <div class="panel-copy">Hide or show interface sections.</div>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2 p-3">
+            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showTopStats" @change="setLobbyViewOption('showTopStats', $event.target.checked)" /> Stats</label>
+            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showRegions" @change="setLobbyViewOption('showRegions', $event.target.checked)" /> Regions</label>
+            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showWorldPulse" @change="setLobbyViewOption('showWorldPulse', $event.target.checked)" /> World Pulse</label>
+            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showSpotlight" @change="setLobbyViewOption('showSpotlight', $event.target.checked)" /> Spotlight</label>
+            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showNearbyPlayers" @change="setLobbyViewOption('showNearbyPlayers', $event.target.checked)" /> Nearby</label>
+            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showChat" @change="setLobbyViewOption('showChat', $event.target.checked)" /> Chat</label>
+            <label class="mini-chip"><input type="checkbox" :checked="lobbyViewOptions.showFooterHints" @change="setLobbyViewOption('showFooterHints', $event.target.checked)" /> Footer</label>
+          </div>
+        </article>
+
         <article class="glass-panel hero-card">
           <div class="hero-card__copy">
             <div class="eyebrow">Live world state</div>
@@ -115,7 +137,7 @@ defineProps({
         </article>
 
         <div class="middle-grid">
-          <article class="glass-panel feed-panel">
+          <article v-if="lobbyViewOptions.showWorldPulse" class="glass-panel feed-panel">
             <div class="panel-heading panel-heading--compact">
               <div>
                 <div class="panel-title">World pulse</div>
@@ -131,7 +153,7 @@ defineProps({
             </div>
           </article>
 
-          <article class="glass-panel spotlight-panel">
+          <article v-if="lobbyViewOptions.showSpotlight" class="glass-panel spotlight-panel">
             <div class="panel-heading panel-heading--compact">
               <div>
                 <div class="panel-title">Spotlight</div>
@@ -151,11 +173,14 @@ defineProps({
               <button class="mini-chip" @click="openPanel('social')">Social feed</button>
             </div>
           </article>
+          <article v-if="!lobbyViewOptions.showWorldPulse && !lobbyViewOptions.showSpotlight" class="glass-panel feed-panel">
+            <div class="empty-state">Both center panels are hidden. Enable sections in Lobby Layout.</div>
+          </article>
         </div>
       </section>
 
       <aside class="right-stack">
-        <article class="glass-panel people-panel">
+        <article v-if="lobbyViewOptions.showNearbyPlayers" class="glass-panel people-panel">
           <div class="panel-heading panel-heading--compact">
             <div>
               <div class="panel-title">Nearby players</div>
@@ -176,7 +201,7 @@ defineProps({
           </div>
         </article>
 
-        <article class="glass-panel chat-panel-vue">
+        <article v-if="lobbyViewOptions.showChat" class="glass-panel chat-panel-vue">
           <div class="panel-heading panel-heading--compact">
             <div>
               <div class="panel-title">Global chat</div>
@@ -203,10 +228,13 @@ defineProps({
             <input class="chat-input-vue" type="text" maxlength="500" placeholder="Message the world…" @keydown="sendChat" />
           </div>
         </article>
+        <article v-if="!lobbyViewOptions.showNearbyPlayers && !lobbyViewOptions.showChat" class="glass-panel people-panel">
+          <div class="empty-state">Right column is hidden. Enable Nearby or Chat in Lobby Layout.</div>
+        </article>
       </aside>
     </main>
 
-    <footer class="lobby-footer glass-panel">
+    <footer v-if="lobbyViewOptions.showFooterHints" class="lobby-footer glass-panel">
       <div class="footer-hints">
         <span>Drag to rotate</span>
         <span>Scroll to zoom</span>
