@@ -138,9 +138,8 @@ export class PlanetModel {
     `;
 
     // ── Outer glow — wide Fresnel limb halo ──
-    // Slightly larger (1.065) and a gentler rim power (2.2 vs 2.8) so the halo
-    // is visible from a wider range of viewing angles.
-    const outerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.065, 96, 96);
+    // Considerably larger halo, gentle rim power for wide glow, stronger twilight band.
+    const outerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.08, 96, 96);
     const outerMat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
@@ -151,7 +150,7 @@ export class PlanetModel {
         uColorDay:      { value: new THREE.Color('#1e6fff') },
         uColorLimb:     { value: new THREE.Color('#70b8ff') },
         uColorTwilight: { value: new THREE.Color('#ff5820') },
-        uStrength:      { value: 1.1 },
+        uStrength:      { value: 1.8 },
       },
       vertexShader: sharedVertexShader,
       fragmentShader: /* glsl */ `
@@ -169,20 +168,20 @@ export class PlanetModel {
 
           // How far we are from the silhouette edge (0 = facing camera, 1 = perpendicular)
           float facing  = max(dot(viewDir, n), 0.0);
-          float rim     = pow(1.0 - facing, 2.2);
+          float rim     = pow(1.0 - facing, 1.6); // Wider Fresnel rim
 
           // Day/night and sun-facing influence
           float sunDot  = dot(n, sunDir);
           float sunSide = sunDot * 0.5 + 0.5;
 
-          // Twilight band — peaks right at the terminator (sunDot ≈ 0)
-          float twilight = exp(-pow(sunDot + 0.08, 2.0) * 14.0);
+          // Twilight band — wider and stronger, peaks right at the terminator
+          float twilight = exp(-pow(sunDot + 0.1, 2.0) * 8.0);
 
           vec3 color = mix(uColorDay, uColorLimb, clamp(rim, 0.0, 1.0));
-          color = mix(color, uColorTwilight, twilight * 0.85);
+          color = mix(color, uColorTwilight, clamp(twilight * 1.5, 0.0, 1.0));
 
           // Atmosphere is brighter on the sun-facing limb
-          float alpha = rim * uStrength * (0.28 + sunSide * 0.72);
+          float alpha = rim * uStrength * (0.3 + sunSide * 0.7);
           gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
         }
       `,
@@ -190,10 +189,9 @@ export class PlanetModel {
     const outerAtmo = new THREE.Mesh(outerGeo, outerMat);
     outerAtmo.name = 'earth-atmosphere-outer';
 
-    // ── Inner scatter — tight bright rim hugging the surface ──
-    // Tighter rim power (4.5) keeps it close to the surface; brighter (0.7) so
-    // the blue ring reads clearly against space.
-    const innerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.028, 96, 96);
+    // ── Inner scatter — bright rim hugging the surface ──
+    // Tighter rim but stronger glow against space.
+    const innerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.03, 96, 96);
     const innerMat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
@@ -201,7 +199,7 @@ export class PlanetModel {
       side: THREE.BackSide,
       uniforms: {
         uSunDirection: sharedSunUniform,
-        uStrength: { value: 0.7 },
+        uStrength: { value: 1.3 },
       },
       vertexShader: sharedVertexShader,
       fragmentShader: /* glsl */ `
@@ -214,12 +212,12 @@ export class PlanetModel {
           vec3 n       = normalize(vWorldNormal);
           vec3 sunDir  = normalize(uSunDirection);
 
-          float rim      = pow(1.0 - max(dot(viewDir, n), 0.0), 4.5);
+          float rim      = pow(1.0 - max(dot(viewDir, n), 0.0), 3.0); // Wider than 4.5
           float sunSide  = max(dot(n, sunDir), 0.0);
 
           // Cooler, more saturated blue for the inner scatter
           vec3 color = vec3(0.45, 0.72, 1.0);
-          float alpha = rim * uStrength * (0.4 + sunSide * 0.6);
+          float alpha = rim * uStrength * (0.5 + sunSide * 0.5);
           gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
         }
       `,

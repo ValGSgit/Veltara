@@ -444,6 +444,7 @@ function animate() {
   }
 
   players.update(delta, elapsed);
+  if (sandbox.update) sandbox.update(delta, elapsed);
   renderer.render(scene, camera);
 }
 

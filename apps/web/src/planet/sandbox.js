@@ -71,6 +71,12 @@ export class RegionSandboxLayer {
       this.objects.set(objectData.id, { data: objectData, mesh });
       this.applyTransform(mesh, objectData);
       this.tryUpgradeToModel(objectData.id);
+      
+      // Spawn animation - start scaled down and pop up
+      mesh.userData.spawnScale = 0.01;
+      mesh.userData.targetScale = new THREE.Vector3(objectData.scale.x, objectData.scale.y, objectData.scale.z);
+      mesh.scale.setScalar(0.01);
+      
       return;
     }
 
@@ -86,7 +92,13 @@ export class RegionSandboxLayer {
     }
     const active = this.objects.get(objectData.id);
     if (!active) return;
-    this.applyTransform(active.mesh, objectData);
+    
+    // Instead of instantly teleporting, we update the target transform
+    // so `update()` can lerp it smoothly.
+    active.mesh.userData.targetPosition = new THREE.Vector3(objectData.position.x, objectData.position.y, objectData.position.z);
+    active.mesh.userData.targetRotation = new THREE.Vector3(objectData.rotation.x, objectData.rotation.y, objectData.rotation.z);
+    active.mesh.userData.targetScale = new THREE.Vector3(objectData.scale.x, objectData.scale.y, objectData.scale.z);
+    
     this.applyMaterial(active.mesh, objectData.material, objectData.id === this.selectedObjectId);
   }
 
@@ -278,6 +290,53 @@ export class RegionSandboxLayer {
     mesh.position.set(objectData.position.x, objectData.position.y, objectData.position.z);
     mesh.rotation.set(objectData.rotation.x, objectData.rotation.y, objectData.rotation.z);
     mesh.scale.set(objectData.scale.x, objectData.scale.y, objectData.scale.z);
+    
+    mesh.userData.targetPosition = mesh.position.clone();
+    mesh.userData.targetRotation = mesh.rotation.clone();
+    mesh.userData.targetScale = mesh.scale.clone();
+  }
+
+  update(delta, elapsed) {
+    // Add smooth lerping and idle animations to sandbox objects
+    this.objects.forEach(({ data, mesh }, id) => {
+      // Handle spawn pop-in animation
+      if (mesh.userData.spawnScale !== undefined) {
+        mesh.userData.spawnScale += delta * 5.0; // scale up quickly
+        if (mesh.userData.spawnScale >= 1.0) {
+          mesh.userData.spawnScale = undefined;
+        } else {
+          // Overshoot slightly for a "pop" bounce effect
+          const bounce = Math.sin(mesh.userData.spawnScale * Math.PI) * 1.2;
+          mesh.scale.copy(mesh.userData.targetScale).multiplyScalar(Math.min(bounce, 1.0));
+        }
+      }
+
+      // Smooth Position / Scale Interpolation (except when spawning)
+      if (!mesh.userData.spawnScale) {
+        if (mesh.userData.targetPosition) {
+          mesh.position.lerp(mesh.userData.targetPosition, Math.min(delta * 10.0, 1));
+        }
+        if (mesh.userData.targetScale) {
+          mesh.scale.lerp(mesh.userData.targetScale, Math.min(delta * 10.0, 1));
+        }
+      }
+
+      // Idle animations based on object type
+      if (data.kind === 'orb') {
+        mesh.rotation.y += delta * 1.5;
+        // gentle bobbing
+        if (mesh.userData.targetPosition) {
+          const bob = Math.sin(elapsed * 2.0 + parseInt(id, 16) % 100) * 0.15;
+          mesh.position.y = mesh.userData.targetPosition.y + bob;
+        }
+      } else if (mesh.userData.targetRotation) {
+        // Linear interpolation for euler angles on other non-rotating objects
+        const t = Math.min(delta * 8.0, 1);
+        mesh.rotation.x += (mesh.userData.targetRotation.x - mesh.rotation.x) * t;
+        mesh.rotation.y += (mesh.userData.targetRotation.y - mesh.rotation.y) * t;
+        mesh.rotation.z += (mesh.userData.targetRotation.z - mesh.rotation.z) * t;
+      }
+    });
   }
 
   applyMaterial(mesh, materialName, isSelected) {

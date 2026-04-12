@@ -11,7 +11,7 @@
 - Missing docs and CI/workflow files now added.
 - Missing portal stylesheet now added.
 
-## Files Added in This Continuation
+## Files Added/Modified in This Continuation
 - apps/portal/src/styles/portal.css
 - docs/architecture.md
 - docs/contributing.md
@@ -20,14 +20,24 @@
 - .github/workflows/deploy.yml
 - AGENT_HANDOFF.md
 - .gitattributes
+- apps/workers/src/swagger.ts (Swagger API Documentation)
+- apps/web/src/planet/sandbox.js (Region Sandbox Gameplay Improvements)
+- apps/web/src/main.js (Animation Loop Updates)
+- apps/web/src/planet/planet-model.js (Enhanced Atmosphere Shaders)
 
-## Remaining Work To Reach Production-Ready
-1. Run full install and fix runtime/type errors across all apps.
-2. Validate all worker routes against real Cloudflare bindings and split deployment strategy.
-3. Harden social/marketplace/billing transaction semantics.
-4. Add/repair tests for auth, API key middleware, websocket protocol, stripe webhooks.
-5. Verify portal pages with live APIs and handle edge cases for auth token lifecycle.
-6. Review and align wrangler route strategy for multi-worker architecture.
+## Remaining Work To Reach Production-Ready / Next Steps
+1. **Run full install** and fix runtime/type errors across all apps.
+2. **Cloudflare Bindings:** Validate all worker routes against real Cloudflare bindings and split deployment strategy.
+3. **Transaction Semantics:** Harden social/marketplace/billing transaction semantics.
+4. **Testing:** Add/repair tests for auth, API key middleware, websocket protocol, stripe webhooks.
+5. **UI Polish:** Verify portal pages with live APIs and handle edge cases for auth token lifecycle.
+6. **Regions Gameplay Expansion:**
+   - *Physics:* Add gravity (falling objects), bounding box collisions, and physics-based stacking.
+   - *Interactive Elements:* Add trigger tiles, bouncy/slippery surfaces, or environmental hazards.
+   - *Visual Feedback:* Add fade-out effects on deletion, pulse/glow on selection. 
+   - *Broadcasting Optimization:* As regions grow, implement interest-based culling, delta updates, or spatial partitioning instead of broadcasting the full state every time.
+   - *Audio:* Implement SFX for object placement, UI interaction, and ambient region sound.
+7. **Review Wrangler Route Strategy** for multi-worker architecture.
 
 ## Immediate Commands
 ```bash
@@ -68,6 +78,19 @@ pnpm build
 
 ### Constants
 All free-tier limits centralized in `packages/shared/src/constants.ts` under `R2_FREE_TIER` and `KV_FREE_TIER`.
+
+---
+
+## Region Sandbox Gameplay Improvements (New)
+
+### Fluid Placement & Object Lifecycle (`sandbox.js`, `main.js`)
+- **Lerped Transform Updates:** Replaced rigid teleporting of objects during updates with seamless frame-by-frame linear interpolation (`.lerp()`) for position and scale, and linear interpolation for rotation vectors.
+- **Physics Spawn "Pop-In":** Rather than popping in instantly, newly placed network objects spawn at `0.01` scale and bounce smoothly to `1.0` using a dynamic `Math.sin()` spring/overshoot computation in the newly added `update()` loop.
+- **Continuous Idle Behaviors:** Special object kinds (like 'orb') rotate gracefully and lightly bob on the Y-axis using the global elapsed time, significantly improving environmental motion within the sandbox structure.
+
+### API & Worker Architecture Refinements
+- **Swagger Documentation:** Scaffolded OpenAPI schema available dynamically at `/api/docs` mapping to `/api/openapi.json`, powered by `swagger.ts` and covering Public Game APIs, Developer Auth, and Portal management.
+- **UI Structure Cleanup:** Extraneous static padding classes have been optimized out of `AuthModalView.vue`.
 
 ---
 

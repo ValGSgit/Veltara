@@ -21,6 +21,7 @@ import { createSupabaseClient } from './utils/supabase.js';
 import { verifyJwt } from './utils/jwt.js';
 import authWorker from './auth-worker.js';
 import apiWorker from './api-worker.js';
+import { openApiSpec, getSwaggerUI } from './swagger.js';
 export { RegionRoom } from './region-room.js';
 
 interface Env {
@@ -62,6 +63,12 @@ export default {
         response = await handleGetPlayer(request, env, path);
       } else if (path === '/api/events' && request.method === 'POST') {
         response = await handleTriggerEvent(request, env);
+      } else if (path === '/api/docs' || path === '/swagger') {
+        response = new Response(getSwaggerUI('/api/openapi.json'), {
+          headers: { 'Content-Type': 'text/html' },
+        });
+      } else if (path === '/api/openapi.json' || path === '/openapi.json') {
+        response = jsonResponse(openApiSpec);
       } else {
         response = Errors.notFound();
       }

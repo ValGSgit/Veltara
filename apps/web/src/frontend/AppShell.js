@@ -52,7 +52,7 @@ export function mountAppShell() {
       HomeView,
       WelcomeView,
       AppNavBar,
-      AuthModalView,
+      //AuthModalView,
       OnboardingModalView,
       PanelDrawerView,
       SandboxOverlay,
@@ -62,7 +62,7 @@ export function mountAppShell() {
     setup() {
       const currentPage = computed(() => shellState.currentPage ?? 'welcome');
       const isHomeSurface = computed(() => ['home', 'profile', 'shop'].includes(currentPage.value));
-      const authModal = computed(() => shellState.authModal);
+      // const authModal = computed(() => shellState.authModal);
       const onboardingVisible = computed(() => Boolean(shellState.showOnboarding));
       const activePanel = computed(() => shellState.activePanel);
 
@@ -149,7 +149,7 @@ export function mountAppShell() {
       return {
         shellState,
         currentPage,
-        authModal,
+        // authModal,
         onboardingVisible,
         activePanel,
         regions,
@@ -234,13 +234,13 @@ export function mountAppShell() {
           :quick-region="quickRegion"
         />
 
-        <AuthModalView
-          v-if="authModal"
-          :mode="authModal"
-          @close="closeAuth"
-          @switch-mode="switchAuthMode"
-          @success="handleAuthSuccess"
-        />
+        // <AuthModalView
+        //   v-if="authModal"
+        //   :mode="authModal"
+        //   @close="closeAuth"
+        //   @switch-mode="switchAuthMode"
+        //   @success="handleAuthSuccess"
+        // />
 
         <OnboardingModalView
           v-if="onboardingVisible"
