@@ -19,7 +19,7 @@ import { toast } from './ui/toast.js';
 import { store } from './state/store.js';
 import { REGIONS } from '@veltara/shared';
 import './ui/panels.js';
-import { mountLobbyShell } from './ui/lobby-shell.js';
+import { mountAppShell } from './frontend/AppShell.js';
 
 import { connectToRegion, sendMessage, isConnected, startPositionBroadcast } from './engine/socket-handler.js';
 import { handleSandboxAction, sanitizeCreateKind, sanitizeCreateMaterial, sanitizeCreateModelKey } from './engine/sandbox-actions.js';
@@ -243,7 +243,7 @@ function leaveRegionLand() {
 
 // ─── HUD / Shell ─────────────────────────────────────────────────────────────
 
-mountLobbyShell();
+mountAppShell();
 sandbox.group.visible = false;
 createLoadingScreen();
 
@@ -263,6 +263,9 @@ document.addEventListener('teleport-to-region', (e) => {
   const region = REGIONS.find((r) => r.id === regionId);
   if (!region) return;
   cameraCtrl.focusOn(region.lat, region.lon, 10);
+  // Keep store in sync so position broadcast sends correct coordinates
+  store.set('selfLat', region.lat);
+  store.set('selfLon', region.lon);
 
   if (isConnected()) {
     sendMessage('position_update', { lat: region.lat, lon: region.lon, action: 'teleporting' });

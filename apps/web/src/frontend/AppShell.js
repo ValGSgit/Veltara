@@ -179,6 +179,8 @@ export function mountAppShell() {
           :is-authenticated="shellState.isAuthenticated"
           :username="shellState.user?.username || ''"
           :ws-connected="shellState.wsConnected"
+          :ws-reconnecting="shellState.wsReconnecting"
+          :ws-latency="shellState.wsLatency"
           :scene-mode="shellState.sceneMode"
           :sandbox-build-mode="shellState.sandboxBuildMode"
           :active-region-name="activeRegionLand.name"
@@ -221,7 +223,6 @@ export function mountAppShell() {
         <LobbyView
           v-else-if="currentPage === 'planet' && shellState.activePlanetId !== 'black-hole'"
           :shell-state="shellState"
-          :lobby-view-options="shellState.lobbyViewOptions"
           :regions="regions"
           :active-region="activeRegion"
           :active-events="activeEvents"
@@ -231,7 +232,6 @@ export function mountAppShell() {
           :teleport="teleport"
           :open-panel="openPanel"
           :quick-region="quickRegion"
-          :set-lobby-view-option="setLobbyViewOption"
         />
 
         <AuthModalView
@@ -280,7 +280,7 @@ export function mountAppShell() {
           @open-model-lab="openModelLab"
         />
 
-        <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land' && currentPage === 'planet' && !(currentPage === 'planet' && shellState.activePlanetId === 'black-hole')" role="toolbar" aria-label="Planet switcher">
+        <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land' && currentPage === 'planet' && shellState.activePlanetId !== 'black-hole'" role="toolbar" aria-label="Planet switcher">
           <button
             class="planet-switcher__btn"
             :class="{ 'is-active': shellState.activePlanetId === 'black-hole' }"

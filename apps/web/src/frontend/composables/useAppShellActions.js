@@ -2,16 +2,6 @@ import { REGIONS } from '@veltara/shared';
 import { store } from '../../state/store.js';
 import { dispatchAppEvent } from '../utils/events.js';
 
-const LOBBY_OPTIONS_KEY = 'lobby_view_options';
-const DEFAULT_LOBBY_OPTIONS = {
-  showTopStats: true,
-  showRegions: true,
-  showWorldPulse: true,
-  showSpotlight: true,
-  showFooterHints: true,
-};
-let lobbyOptionsHydrated = false;
-
 const PAGE_TO_PATH = {
   welcome: '/welcome',
   home: '/home',
@@ -28,25 +18,7 @@ function pushPageLocation(page, { replace = false } = {}) {
   else window.history.pushState({}, '', path);
 }
 
-function hydrateLobbyOptions() {
-  if (lobbyOptionsHydrated) return;
-  lobbyOptionsHydrated = true;
-  try {
-    const raw = localStorage.getItem(LOBBY_OPTIONS_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return;
-    store.set('lobbyViewOptions', {
-      ...DEFAULT_LOBBY_OPTIONS,
-      ...parsed,
-    });
-  } catch {
-    // ignore malformed saved options
-  }
-}
-
 export function useAppShellActions(shellState) {
-  hydrateLobbyOptions();
 
   function teleport(regionId) {
     dispatchAppEvent('teleport-to-region', { regionId });
@@ -182,22 +154,6 @@ export function useAppShellActions(shellState) {
     dispatchAppEvent('planet-select', { planetId });
   }
 
-  function setLobbyViewOption(key, enabled) {
-    if (!Object.prototype.hasOwnProperty.call(DEFAULT_LOBBY_OPTIONS, key)) return;
-    const current = shellState.lobbyViewOptions ?? DEFAULT_LOBBY_OPTIONS;
-    const next = {
-      ...DEFAULT_LOBBY_OPTIONS,
-      ...current,
-      [key]: Boolean(enabled),
-    };
-    store.set('lobbyViewOptions', next);
-    try {
-      localStorage.setItem(LOBBY_OPTIONS_KEY, JSON.stringify(next));
-    } catch {
-      // ignore storage errors
-    }
-  }
-
   return {
     teleport,
     navigate,
@@ -220,6 +176,5 @@ export function useAppShellActions(shellState) {
     openCreatorStudio,
     closeCreatorStudio,
     selectPlanet,
-    setLobbyViewOption,
   };
 }

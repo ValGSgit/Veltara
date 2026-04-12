@@ -129,11 +129,10 @@ export function connectToRegion(regionId, token, deps) {
   socket.on('position_update', (payload) => {
     const map = new Map(store.get('players'));
     const p = map.get(payload.id);
-    if (p) {
-      map.set(payload.id, { ...p, ...payload });
-      store.set('players', map);
-    }
-    deps.players.addOrUpdate({ ...p, ...payload });
+    const merged = p ? { ...p, ...payload } : payload;
+    map.set(payload.id, merged);
+    store.set('players', map);
+    deps.players.addOrUpdate(merged);
   });
 
   socket.on('chat_message', (payload) => {

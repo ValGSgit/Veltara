@@ -85,27 +85,27 @@ export class PlanetModel {
         material.toneMapped = true;
 
         if ('map' in material && material.map) {
-          material.map.colorSpace = THREE.SRGBColorSpace;
+          // r128 uses encoding, not colorSpace
+          material.map.encoding = THREE.sRGBEncoding;
           material.map.anisotropy = 8;
         }
         if ('emissiveMap' in material && material.emissiveMap) {
-          material.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+          material.emissiveMap.encoding = THREE.sRGBEncoding;
           material.emissiveMap.anisotropy = 8;
         }
 
-        // Boost color richness for Earth models
+        // Earth model — let the lighting rig do the work; avoid flat self-illumination
         if (this.appearance === 'earth' && material.isMeshStandardMaterial) {
-          material.envMapIntensity = 0.62;
-          if (material.map) {
-            material.roughness = Math.min(material.roughness ?? 0.75, 0.72);
-            material.metalness = Math.max(material.metalness ?? 0.0, 0.01);
-            if (material.emissive && material.emissive.setScalar) {
-              material.emissive.setScalar(0.03);
-            }
-          } else {
-            // Fallback tint when no albedo texture exists.
-            material.color = material.color ?? new THREE.Color(0x7aa2d8);
-            material.color.offsetHSL(0, 0.12, 0.04);
+          // Clamp roughness to a natural range; oceans tend to be smooth, terrain rough.
+          // Without being able to identify individual sub-materials, 0.65 is a good average
+          // that gives specular highlights on water without making land look metallic.
+          material.roughness = Math.min(material.roughness ?? 0.75, 0.65);
+          material.metalness = 0.0; // Earth surfaces are not metallic
+          // Do NOT add emissive — it destroys day/night contrast and creates a flat look.
+          // The hemisphere + fill lights handle dark-side visibility.
+          if (!material.map) {
+            // No albedo: default to a plausible ocean/land blue-green mix
+            material.color.set(0x4a7fbf);
           }
         }
 
@@ -125,73 +125,85 @@ export class PlanetModel {
   // ─── Earth Atmosphere (multi-layer) ────────���────────────────────────────────
 
   buildEarthAtmosphere() {
-    // Outer atmosphere — wide Fresnel glow
-    const outerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.055, 96, 96);
+    const sharedSunUniform = { value: new THREE.Vector3(1, 0.3, 0.5).normalize() };
+    const sharedVertexShader = /* glsl */ `
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNormal;
+      void main() {
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPos = worldPos.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `;
+
+    // ── Outer glow — wide Fresnel limb halo ──
+    // Slightly larger (1.065) and a gentler rim power (2.2 vs 2.8) so the halo
+    // is visible from a wider range of viewing angles.
+    const outerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.065, 96, 96);
     const outerMat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
       uniforms: {
-        uSunDirection: { value: new THREE.Vector3(1, 0.3, 0.5).normalize() },
-        uColorA: { value: new THREE.Color('#3a8eff') },
-        uColorB: { value: new THREE.Color('#a8d8ff') },
-        uTwilight: { value: new THREE.Color('#ff6030') },
-        uStrength: { value: 0.9 },
+        uSunDirection: sharedSunUniform,
+        uColorDay:      { value: new THREE.Color('#1e6fff') },
+        uColorLimb:     { value: new THREE.Color('#70b8ff') },
+        uColorTwilight: { value: new THREE.Color('#ff5820') },
+        uStrength:      { value: 1.1 },
       },
-      vertexShader: /* glsl */ `
-        varying vec3 vWorldPos;
-        varying vec3 vWorldNormal;
-        void main() {
-          vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vWorldPos = worldPos.xyz;
-          vWorldNormal = normalize(mat3(modelMatrix) * normal);
-          gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-      `,
+      vertexShader: sharedVertexShader,
       fragmentShader: /* glsl */ `
         uniform vec3 uSunDirection;
-        uniform vec3 uColorA;
-        uniform vec3 uColorB;
-        uniform vec3 uTwilight;
+        uniform vec3 uColorDay;
+        uniform vec3 uColorLimb;
+        uniform vec3 uColorTwilight;
         uniform float uStrength;
         varying vec3 vWorldPos;
         varying vec3 vWorldNormal;
         void main() {
           vec3 viewDir = normalize(cameraPosition - vWorldPos);
-          vec3 normal = normalize(vWorldNormal);
-          vec3 sunDir = normalize(uSunDirection);
+          vec3 n       = normalize(vWorldNormal);
+          vec3 sunDir  = normalize(uSunDirection);
 
-          float rim = pow(1.0 - max(dot(viewDir, normal), 0.0), 2.8);
-          float sunFacing = max(dot(normal, sunDir) * 0.5 + 0.5, 0.0);
+          // How far we are from the silhouette edge (0 = facing camera, 1 = perpendicular)
+          float facing  = max(dot(viewDir, n), 0.0);
+          float rim     = pow(1.0 - facing, 2.2);
 
-          // Twilight band at terminator
-          float terminator = dot(normal, sunDir);
-          float twilightBand = exp(-pow(terminator + 0.05, 2.0) * 18.0);
+          // Day/night and sun-facing influence
+          float sunDot  = dot(n, sunDir);
+          float sunSide = sunDot * 0.5 + 0.5;
 
-          vec3 baseColor = mix(uColorA, uColorB, clamp(rim * 1.2, 0.0, 1.0));
-          vec3 color = mix(baseColor, uTwilight, twilightBand * 0.6);
+          // Twilight band — peaks right at the terminator (sunDot ≈ 0)
+          float twilight = exp(-pow(sunDot + 0.08, 2.0) * 14.0);
 
-          float alpha = rim * uStrength * (0.35 + sunFacing * 0.65);
-          gl_FragColor = vec4(color, alpha);
+          vec3 color = mix(uColorDay, uColorLimb, clamp(rim, 0.0, 1.0));
+          color = mix(color, uColorTwilight, twilight * 0.85);
+
+          // Atmosphere is brighter on the sun-facing limb
+          float alpha = rim * uStrength * (0.28 + sunSide * 0.72);
+          gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
         }
       `,
     });
     const outerAtmo = new THREE.Mesh(outerGeo, outerMat);
     outerAtmo.name = 'earth-atmosphere-outer';
 
-    // Inner atmosphere — tight bright rim
-    const innerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.025, 96, 96);
+    // ── Inner scatter — tight bright rim hugging the surface ──
+    // Tighter rim power (4.5) keeps it close to the surface; brighter (0.7) so
+    // the blue ring reads clearly against space.
+    const innerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.028, 96, 96);
     const innerMat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
       uniforms: {
-        uSunDirection: outerMat.uniforms.uSunDirection,
-        uStrength: { value: 0.5 },
+        uSunDirection: sharedSunUniform,
+        uStrength: { value: 0.7 },
       },
-      vertexShader: outerMat.vertexShader,
+      vertexShader: sharedVertexShader,
       fragmentShader: /* glsl */ `
         uniform vec3 uSunDirection;
         uniform float uStrength;
@@ -199,21 +211,51 @@ export class PlanetModel {
         varying vec3 vWorldNormal;
         void main() {
           vec3 viewDir = normalize(cameraPosition - vWorldPos);
-          vec3 normal = normalize(vWorldNormal);
-          float rim = pow(1.0 - max(dot(viewDir, normal), 0.0), 4.0);
-          float sunFacing = max(dot(normal, normalize(uSunDirection)), 0.0);
-          vec3 color = vec3(0.6, 0.85, 1.0);
-          float alpha = rim * uStrength * (0.5 + sunFacing * 0.5);
-          gl_FragColor = vec4(color, alpha);
+          vec3 n       = normalize(vWorldNormal);
+          vec3 sunDir  = normalize(uSunDirection);
+
+          float rim      = pow(1.0 - max(dot(viewDir, n), 0.0), 4.5);
+          float sunSide  = max(dot(n, sunDir), 0.0);
+
+          // Cooler, more saturated blue for the inner scatter
+          vec3 color = vec3(0.45, 0.72, 1.0);
+          float alpha = rim * uStrength * (0.4 + sunSide * 0.6);
+          gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
         }
       `,
     });
     const innerAtmo = new THREE.Mesh(innerGeo, innerMat);
     innerAtmo.name = 'earth-atmosphere-inner';
 
-    this.group.add(outerAtmo, innerAtmo);
-    this._effectRoots.push(outerAtmo, innerAtmo);
-    this._earthEffects = { outerAtmo, innerAtmo, sunUniform: outerMat.uniforms.uSunDirection };
+    // ── Cloud haze sprite — soft white scatter just above the surface ──
+    // This breaks up the stark GLTF texture look and gives the impression of
+    // high-altitude cloud cover without needing actual cloud geometry.
+    const hazeTexture = this.createRadialTexture([
+      [0.0, 'rgba(255, 255, 255, 0.0)'],
+      [0.72, 'rgba(255, 255, 255, 0.0)'],
+      [0.84, 'rgba(255, 255, 255, 0.10)'],
+      [0.93, 'rgba(240, 248, 255, 0.22)'],
+      [1.0, 'rgba(255, 255, 255, 0.0)'],
+    ], 512);
+    const haze = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: hazeTexture,
+      transparent: true,
+      opacity: 1.0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }));
+    haze.scale.setScalar(PLANET_RADIUS * 2.18);
+    haze.name = 'earth-cloud-haze';
+
+    this.group.add(outerAtmo, innerAtmo, haze);
+    this._effectRoots.push(outerAtmo, innerAtmo, haze);
+    this._earthEffects = {
+      outerAtmo,
+      innerAtmo,
+      haze,
+      sunUniform: sharedSunUniform,
+    };
   }
 
   // ─── Earth Lighting ─────────────────────────────────────────────────────────

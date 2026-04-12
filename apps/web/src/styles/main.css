@@ -12,6 +12,18 @@
   --veltara-glow: #4fffb0;
   --text-primary: #e2e2f0;
   --text-muted: #6b6b8a;
+
+  /* ─── Shared glass tokens ────────────────────────────────────────────────── */
+  /* Use these instead of repeating raw rgba() values everywhere */
+  --glass-border:        rgba(148, 163, 184, 0.12);
+  --glass-border-mid:    rgba(148, 163, 184, 0.18);
+  --glass-bg:            rgba(255, 255, 255, 0.025);
+  --glass-bg-soft:       rgba(255, 255, 255, 0.035);
+  --glow-border:         rgba(79, 255, 176, 0.28);
+  --glow-bg:             rgba(79, 255, 176, 0.06);
+  --accent-border:       rgba(165, 211, 255, 0.2);
+  --accent-active-bg:    linear-gradient(135deg, rgba(55, 203, 255, 0.28), rgba(84, 111, 255, 0.25));
+  --pill-transition:     transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────────────── */
@@ -361,8 +373,8 @@ body::after {
 }
 
 .home-events .event-card:hover {
-  border-color: rgba(79, 255, 176, 0.26);
-  background: rgba(79, 255, 176, 0.06);
+  border-color: var(--glow-border);
+  background: var(--glow-bg);
   transform: translateY(-1px);
 }
 
@@ -407,8 +419,8 @@ body::after {
 .mini-chip,
 .chat-tab-vue {
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+  border: 1px solid var(--glass-border);
+  transition: var(--pill-transition);
 }
 
 .status-pill {
@@ -456,7 +468,7 @@ body::after {
 .mini-chip:hover,
 .chat-tab-vue:hover {
   transform: translateY(-1px);
-  border-color: rgba(79, 255, 176, 0.28);
+  border-color: var(--glow-border);
 }
 
 .icon-button--primary,
@@ -547,8 +559,8 @@ body::after {
 .event-card,
 .spotlight-region {
   border-radius: 1rem;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
 }
 
 .metric-tile {
@@ -641,8 +653,8 @@ body::after {
   width: 100%;
   padding: 0.8rem 0.85rem;
   border-radius: 1rem;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
   text-align: left;
   cursor: pointer;
   color: #f5f7ff;
@@ -652,8 +664,8 @@ body::after {
 
 .region-card:hover,
 .region-card--active {
-  border-color: rgba(79, 255, 176, 0.28);
-  background: rgba(79, 255, 176, 0.05);
+  border-color: var(--glow-border);
+  background: var(--glow-bg);
   transform: translateY(-2px) scale(1.01);
   box-shadow: 0 8px 24px rgba(79, 255, 176, 0.1);
 }
@@ -743,8 +755,8 @@ body::after {
   gap: 0.75rem;
   padding: 0.7rem;
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 }
 
 .player-avatar-vue,
@@ -796,8 +808,8 @@ body::after {
 .chat-message-vue {
   padding: 0.7rem 0.8rem;
   border-radius: 0.95rem;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 }
 
 .chat-message-vue__author {
@@ -1037,8 +1049,8 @@ body::after {
 
 .sandbox-stat-card {
   border-radius: 0.85rem;
-  border: 1px solid rgba(158, 194, 255, 0.15);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
   padding: 0.55rem 0.7rem;
 }
 
@@ -1068,8 +1080,8 @@ body::after {
 .sandbox-overlay__selection {
   margin-top: 0.8rem;
   border-radius: 0.85rem;
-  border: 1px solid rgba(158, 194, 255, 0.14);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
   padding: 0.7rem;
 }
 
@@ -1095,14 +1107,14 @@ body::after {
 
 .sandbox-action-btn {
   border-radius: 0.8rem;
-  border: 1px solid rgba(165, 211, 255, 0.2);
+  border: 1px solid var(--accent-border);
   padding: 0.52rem 0.72rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   color: #eaf4ff;
   font-weight: 600;
   font-size: 0.76rem;
   cursor: pointer;
-  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+  transition: var(--pill-transition);
 }
 
 .sandbox-action-btn:hover {
@@ -1116,7 +1128,7 @@ body::after {
 }
 
 .sandbox-action-btn--primary {
-  background: linear-gradient(135deg, rgba(55, 203, 255, 0.28), rgba(84, 111, 255, 0.25));
+  background: var(--accent-active-bg);
 }
 
 .sandbox-action-btn--ghost {
@@ -1140,8 +1152,8 @@ body::after {
   align-items: center;
   gap: 0.45rem;
   border-radius: 999px;
-  border: 1px solid rgba(164, 204, 255, 0.18);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--glass-border-mid);
+  background: var(--glass-bg-soft);
   padding: 0.26rem 0.54rem;
   color: #d9ebff;
   font-size: 0.68rem;
@@ -1189,19 +1201,25 @@ body::after {
 
 .planet-switcher__btn {
   border-radius: 999px;
-  border: 1px solid rgba(165, 211, 255, 0.2);
+  border: 1px solid var(--accent-border);
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   color: #eaf4ff;
   font-weight: 600;
   font-size: 0.76rem;
   cursor: pointer;
   white-space: nowrap;
+  transition: var(--pill-transition);
+}
+
+.planet-switcher__btn:hover {
+  border-color: var(--glow-border);
+  transform: translateY(-1px);
 }
 
 .planet-switcher__btn.is-active {
   border-color: rgba(95, 210, 255, 0.55);
-  background: linear-gradient(135deg, rgba(55, 203, 255, 0.28), rgba(84, 111, 255, 0.25));
+  background: var(--accent-active-bg);
 }
 
 .model-lab-backdrop {

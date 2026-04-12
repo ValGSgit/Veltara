@@ -18,8 +18,22 @@ function createStore(initial) {
       listeners.get('*')?.forEach((fn) => fn({ key, value, prev }));
     },
 
+    /** Set multiple keys at once. Per-key listeners fire for each key;
+     *  the wildcard '*' listener fires once per key as well (same as set),
+     *  but all state mutations happen before any listener fires. */
     update(updates) {
-      Object.entries(updates).forEach(([k, v]) => this.set(k, v));
+      const entries = Object.entries(updates);
+      const prev = {};
+      // Apply all mutations first
+      entries.forEach(([k, v]) => {
+        prev[k] = state[k];
+        state[k] = v;
+      });
+      // Then fire per-key listeners
+      entries.forEach(([k, v]) => {
+        listeners.get(k)?.forEach((fn) => fn(v, prev[k]));
+        listeners.get('*')?.forEach((fn) => fn({ key: k, value: v, prev: prev[k] }));
+      });
     },
 
     on(key, fn) {
@@ -68,14 +82,6 @@ export const store = createStore({
   showOnboarding: false,
   modelLabOpen: false,
   creatorStudioOpen: false,
-  lobbyViewOptions: {
-    showTopStats: true,
-    showRegions: true,
-    showWorldPulse: true,
-    showSpotlight: true,
-    showFooterHints: true,
-  },
-
   // Connection
   wsConnected: false,
   wsReconnecting: false,

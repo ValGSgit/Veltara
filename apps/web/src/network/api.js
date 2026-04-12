@@ -19,13 +19,11 @@ class ApiClient {
     this.token = null;
   }
 
-  async _request(method, path, body = null) {
+  async _fetch(method, path, body, token) {
     const headers = { 'Content-Type': 'application/json' };
-    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-
-    let res;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     try {
-      res = await fetch(`${BASE_URL}${path}`, {
+      return await fetch(`${BASE_URL}${path}`, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
@@ -38,6 +36,20 @@ class ApiClient {
       err.code = 'NETWORK_ERROR';
       err.cause = networkErr;
       throw err;
+    }
+  }
+
+  async _request(method, path, body = null) {
+    let res = await this._fetch(method, path, body, this.token);
+
+    // On 401 during an active session, try refreshing the token once then retry.
+    if (res.status === 401 && localStorage.getItem('refresh_token')) {
+      try {
+        await this.refreshToken();
+        res = await this._fetch(method, path, body, this.token);
+      } catch {
+        // Refresh failed — fall through to throw the original 401 below
+      }
     }
 
     const data = await res.json().catch(() => ({}));
