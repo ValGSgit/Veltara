@@ -23,6 +23,12 @@ import {
 
 const shellState = reactive(store.getAll());
 
+const PLANET_OPTIONS = [
+  { id: 'black-hole', label: 'Menu' },
+  { id: 'veltara', label: 'Veltara' },
+  { id: 'earth-test', label: 'Earth' },
+];
+
 store.on('*', ({ key, value }) => {
   shellState[key] = value;
 });
@@ -52,7 +58,7 @@ export function mountAppShell() {
       HomeView,
       WelcomeView,
       AppNavBar,
-      //AuthModalView,
+      AuthModalView,
       OnboardingModalView,
       PanelDrawerView,
       SandboxOverlay,
@@ -62,7 +68,7 @@ export function mountAppShell() {
     setup() {
       const currentPage = computed(() => shellState.currentPage ?? 'welcome');
       const isHomeSurface = computed(() => ['home', 'profile', 'shop'].includes(currentPage.value));
-      // const authModal = computed(() => shellState.authModal);
+      const authModal = computed(() => shellState.authModal);
       const onboardingVisible = computed(() => Boolean(shellState.showOnboarding));
       const activePanel = computed(() => shellState.activePanel);
 
@@ -149,7 +155,7 @@ export function mountAppShell() {
       return {
         shellState,
         currentPage,
-        // authModal,
+        authModal,
         onboardingVisible,
         activePanel,
         regions,
@@ -165,6 +171,7 @@ export function mountAppShell() {
         sandboxObjectCount,
         selectedSandboxObject,
         canEditSelection,
+        planetOptions: PLANET_OPTIONS,
         ...actions,
         playerName,
         playerAction,
@@ -234,13 +241,13 @@ export function mountAppShell() {
           :quick-region="quickRegion"
         />
 
-        // <AuthModalView
-        //   v-if="authModal"
-        //   :mode="authModal"
-        //   @close="closeAuth"
-        //   @switch-mode="switchAuthMode"
-        //   @success="handleAuthSuccess"
-        // />
+        <AuthModalView
+          v-if="authModal"
+          :mode="authModal"
+          @close="closeAuth"
+          @switch-mode="switchAuthMode"
+          @success="handleAuthSuccess"
+        />
 
         <OnboardingModalView
           v-if="onboardingVisible"
@@ -282,28 +289,14 @@ export function mountAppShell() {
 
         <div class="planet-switcher glass-panel" v-if="shellState.sceneMode !== 'region-land' && currentPage === 'planet' && shellState.activePlanetId !== 'black-hole'" role="toolbar" aria-label="Planet switcher">
           <button
+            v-for="planet in planetOptions"
+            :key="planet.id"
             class="planet-switcher__btn"
-            :class="{ 'is-active': shellState.activePlanetId === 'black-hole' }"
-            :aria-pressed="shellState.activePlanetId === 'black-hole'"
-            @click="selectPlanet('black-hole')"
+            :class="{ 'is-active': shellState.activePlanetId === planet.id }"
+            :aria-pressed="shellState.activePlanetId === planet.id"
+            @click="selectPlanet(planet.id)"
           >
-            Black Hole (Menu)
-          </button>
-          <button
-            class="planet-switcher__btn"
-            :class="{ 'is-active': shellState.activePlanetId === 'veltara' }"
-            :aria-pressed="shellState.activePlanetId === 'veltara'"
-            @click="selectPlanet('veltara')"
-          >
-            Veltara
-          </button>
-          <button
-            class="planet-switcher__btn"
-            :class="{ 'is-active': shellState.activePlanetId === 'earth-test' }"
-            :aria-pressed="shellState.activePlanetId === 'earth-test'"
-            @click="selectPlanet('earth-test')"
-          >
-            Earth (Test)
+            {{ planet.label }}
           </button>
         </div>
       </div>

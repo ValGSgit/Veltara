@@ -223,7 +223,8 @@ apps/web/src/
     composables/
       useAppShellActions.js     — all navigation + action logic for AppShell
   planet/
-    planet-model.js             — Earth + Black Hole 3D rendering (GLSL shaders, particles, etc.)
+    planet-model.js             — GLB/FBX model loader + Black Hole effects (GLSL shaders, particles)
+    procedural-earth.js         — fully procedural Earth (noise textures, day/night, clouds, atmosphere)
     planet.js                   — Veltara procedural planet
     camera.js                   — CameraController (spherical coords, orbit)
     regions.js                  — RegionMarkers 3D overlays
@@ -327,6 +328,55 @@ Added hover transition to `.planet-switcher__btn` (was missing).
 
 **AppShell.js** — `lobbyViewOptions` bindings to LobbyView removed; new `wsReconnecting` + `wsLatency` wired to AppNavBar
 
+## June 2026 Maintainability + Procedural Earth Pass (Fifth)
+
+### Critical fix: sign-in restored
+The previous commit left `AuthModalView` commented out in `AppShell.js` — including
+`//`-prefixed lines *inside the template string*, which Vue renders as literal text.
+Logged-out users had no way to authenticate (bootstrap's `showLoginModal()` set
+`authModal` in the store but nothing rendered it). Component registration, the
+`authModal` computed, and the template block are restored.
+
+### Earth model replaced with procedural Earth
+- **New**: `apps/web/src/planet/procedural-earth.js` (`ProceduralEarth`) — same interface
+  as `PlanetModel` (`group`, `setVisible`, `loadIfNeeded({onProgress})`, `update`,
+  `setSunDirection`), so `main.js`/`bootstrap.js` integration is unchanged.
+- All textures generated at load from seeded 3D value-noise fbm sampled on the sphere
+  (seam-free): day map (continents/ice/ocean, land mask in alpha for ocean-only specular),
+  night map (city-light clusters), cloud map. Generation is chunked by rows so the
+  loading bar animates. Uses `DataTexture` — canvas `putImageData` premultiplies alpha
+  and would black out oceans (land mask alpha = 0).
+- Custom shaders: day/night terminator with warm twilight band, ocean specular glint,
+  independent cloud-layer drift, dual-layer fresnel atmosphere (params carried over from
+  the GLB Earth's tuned atmosphere).
+- **Deleted**: `apps/web/public/models/earth-00.glb` (56 MB — recoverable from git
+  history). Earth-specific branches removed from `planet-model.js` (now the GLB/FBX +
+  black-hole loader only).
+
+### three r128 API fix
+`renderer.outputColorSpace = THREE.SRGBColorSpace` and `texture.colorSpace` are r152+
+APIs — under three 0.128 they were silently no-ops (Rollup warned "not exported").
+Replaced with `outputEncoding`/`encoding` + `sRGBEncoding` in `main.js` and
+`ModelLabModal.vue`.
+
+### UI declutter
+- **LobbyView**: removed the duplicated Profile/Feed/Store button rows (they appeared in
+  the status strip, world card, and spotlight); removed metric tiles duplicating the
+  status strip (Explorers/World cycle); spotlight keeps only Teleport. The planet view
+  breathes more.
+- **Planet switcher** in AppShell is data-driven (`PLANET_OPTIONS`) with clean labels
+  (Menu / Veltara / Earth) instead of three copy-pasted buttons with dev labels.
+
+### Maintainability
+- `main.js`: planet/marker/minimap visibility logic deduplicated into
+  `applyPlanetVisibility(activePlanetId)` (was repeated 3×).
+- `useAppShellActions.navigate()`: 30-line if-chain replaced by a `PAGES` map that owns
+  each page's path + associated panel.
+- **Deleted dead code**: `ui/panels.js` (listened for an `open-panel` DOM event nothing
+  dispatches), `ui/onboarding.js` (one-line re-export shim), `SupabaseTodosView.vue`
+  (unused demo component; importing it would throw without Supabase env vars).
+
 ## Known Remaining Work
 1. **Unit tests** — engine modules (socket, keyboard, sandbox, bootstrap) have no test coverage
 2. **selfLat/selfLon during region-land** — still `0,0` once *inside* the region land scene (no camera-to-lat/lon conversion). Fixed for the outer planet view but region-land mode doesn't update position.
+3. **`earth-test` planet id** — kept for store/keyboard compatibility; rename to `earth` would touch store defaults, keyboard shortcuts, and switcher options together.

@@ -89,20 +89,6 @@ defineProps({
               <span>Hotspot</span>
               <strong>{{ featuredRegion.name }}</strong>
             </div>
-            <div class="metric-tile">
-              <span>Explorers</span>
-              <strong class="metric-ok">{{ totalOnline }}</strong>
-            </div>
-            <div class="metric-tile">
-              <span>World cycle</span>
-              <strong>{{ clock }}</strong>
-            </div>
-          </div>
-
-          <div class="lobby__world-actions">
-            <PillButton size="md" @click="openPanel('profile')">Profile</PillButton>
-            <PillButton size="md" @click="openPanel('social')">Feed</PillButton>
-            <PillButton size="md" @click="openPanel('settings')">Settings</PillButton>
           </div>
         </PanelCard>
 
@@ -130,7 +116,6 @@ defineProps({
             </div>
             <div class="spotlight-actions">
               <PillButton @click="teleport(featuredRegion.id)">Teleport</PillButton>
-              <PillButton @click="openPanel('store')">Cosmetics</PillButton>
             </div>
           </PanelCard>
         </div>
@@ -314,15 +299,8 @@ defineProps({
 
 .lobby__metrics {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.6rem;
-  margin-bottom: 1rem;
-}
-
-.lobby__world-actions {
-  display: flex;
-  gap: 0.55rem;
-  flex-wrap: wrap;
 }
 
 /* ─── Lower row ─────────────────────────────────────────────────────────────── */
@@ -394,10 +372,6 @@ defineProps({
 @media (max-width: 1100px) {
   .lobby__grid {
     grid-template-columns: 1fr;
-  }
-
-  .lobby__metrics {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 

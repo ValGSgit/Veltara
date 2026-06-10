@@ -9,6 +9,7 @@ import './styles/main.css';
 import * as THREE from 'three';
 import { Planet } from './planet/planet.js';
 import { PlanetModel } from './planet/planet-model.js';
+import { ProceduralEarth } from './planet/procedural-earth.js';
 import { RegionMarkers } from './planet/regions.js';
 import { PlayerDots } from './planet/players.js';
 import { RegionSandboxLayer } from './planet/sandbox.js';
@@ -18,10 +19,9 @@ import { Minimap } from './planet/minimap.js';
 import { toast } from './ui/toast.js';
 import { store } from './state/store.js';
 import { REGIONS } from '@veltara/shared';
-import './ui/panels.js';
 import { mountAppShell } from './frontend/AppShell.js';
 
-import { connectToRegion, sendMessage, isConnected, startPositionBroadcast } from './engine/socket-handler.js';
+import { sendMessage, isConnected } from './engine/socket-handler.js';
 import { handleSandboxAction, sanitizeCreateKind, sanitizeCreateMaterial, sanitizeCreateModelKey } from './engine/sandbox-actions.js';
 import { initKeyboardShortcuts } from './engine/keyboard.js';
 import { createLoadingScreen, bootstrap } from './engine/bootstrap.js';
@@ -37,7 +37,7 @@ const renderer = new THREE.WebGLRenderer({
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.outputEncoding = THREE.sRGBEncoding; // three r128 API (SRGBColorSpace is r152+)
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.28;
 renderer.physicallyCorrectLights = true;
@@ -59,11 +59,7 @@ function getQuality() {
 
 let quality = getQuality();
 const planet = new Planet(scene, quality);
-const earthPlanet = new PlanetModel(scene, '/models/earth-00.glb', {
-  appearance: 'earth',
-  spinSpeed: 0.0028,
-  scaleMultiplier: 1.02,
-});
+const earthPlanet = new ProceduralEarth(scene, { spinSpeed: 0.0028 });
 const blackHolePlanet = new PlanetModel(scene, '/models/black_hole/source/black%20hole.fbx', {
   format: 'fbx',
   appearance: 'black-hole',
@@ -132,6 +128,21 @@ function playTransition(callback) {
 
 // ─── Scene Mode Switching ─────────────────────────────────────────────────────
 
+/** Show/hide planet-view objects to match the active planet (or hide all in region-land). */
+function applyPlanetVisibility(activePlanetId) {
+  const usingEarth = activePlanetId === 'earth-test';
+  const usingBlackHole = activePlanetId === 'black-hole';
+  const usingVeltara = activePlanetId != null && !usingEarth && !usingBlackHole;
+  planet.mesh.visible = usingVeltara;
+  planet.atmosphere.visible = usingVeltara;
+  planet.clouds.visible = usingVeltara;
+  earthPlanet.setVisible(usingEarth);
+  blackHolePlanet.setVisible(usingBlackHole);
+  regions.markers.forEach((group) => { group.visible = usingVeltara; });
+  players.instancedMesh.visible = usingVeltara;
+  minimap.canvas.style.display = usingVeltara ? 'block' : 'none';
+}
+
 function setSceneMode(nextMode, regionId = null) {
   const currentMode = store.get('sceneMode');
   if (currentMode === nextMode && (nextMode !== 'region-land' || store.get('activeRegionLandId') === regionId)) {
@@ -147,14 +158,7 @@ function setSceneMode(nextMode, regionId = null) {
       store.set('sceneMode', 'region-land');
       store.set('activeRegionLandId', regionId);
 
-      planet.mesh.visible = false;
-      planet.atmosphere.visible = false;
-      planet.clouds.visible = false;
-      earthPlanet.setVisible(false);
-      blackHolePlanet.setVisible(false);
-      regions.markers.forEach((group) => { group.visible = false; });
-      players.instancedMesh.visible = false;
-      minimap.canvas.style.display = 'none';
+      applyPlanetVisibility(null);
 
       regionLand.enter(regionId);
       regionLand.focusCamera(cameraCtrl);
@@ -167,18 +171,7 @@ function setSceneMode(nextMode, regionId = null) {
     store.set('sceneMode', 'planet');
     store.set('activeRegionLandId', null);
 
-    const activePlanetId = store.get('activePlanetId') ?? 'black-hole';
-    const usingEarth = activePlanetId === 'earth-test';
-    const usingBlackHole = activePlanetId === 'black-hole';
-    const usingVeltara = !usingEarth && !usingBlackHole;
-    planet.mesh.visible = usingVeltara;
-    planet.atmosphere.visible = usingVeltara;
-    planet.clouds.visible = usingVeltara;
-    earthPlanet.setVisible(usingEarth);
-    blackHolePlanet.setVisible(usingBlackHole);
-    regions.markers.forEach((group) => { group.visible = usingVeltara; });
-    players.instancedMesh.visible = usingVeltara;
-    minimap.canvas.style.display = usingVeltara ? 'block' : 'none';
+    applyPlanetVisibility(store.get('activePlanetId') ?? 'black-hole');
 
     regionLand.leave();
     restoreCameraState(planetCameraSnapshot);
@@ -218,17 +211,7 @@ async function setActivePlanet(planetId) {
     }
   }
 
-  const usingEarth = next === 'earth-test';
-  const usingBlackHole = next === 'black-hole';
-  const usingVeltara = !usingEarth && !usingBlackHole;
-  planet.mesh.visible = usingVeltara;
-  planet.atmosphere.visible = usingVeltara;
-  planet.clouds.visible = usingVeltara;
-  earthPlanet.setVisible(usingEarth);
-  blackHolePlanet.setVisible(usingBlackHole);
-  regions.markers.forEach((group) => { group.visible = usingVeltara; });
-  players.instancedMesh.visible = usingVeltara;
-  minimap.canvas.style.display = usingVeltara ? 'block' : 'none';
+  applyPlanetVisibility(next);
 }
 
 function enterRegionLand(regionId) {

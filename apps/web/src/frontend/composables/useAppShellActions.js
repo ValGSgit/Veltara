@@ -2,16 +2,17 @@ import { REGIONS } from '@veltara/shared';
 import { store } from '../../state/store.js';
 import { dispatchAppEvent } from '../utils/events.js';
 
-const PAGE_TO_PATH = {
-  welcome: '/welcome',
-  home: '/home',
-  planet: '/planet',
-  profile: '/profile',
-  shop: '/shop',
+// Each page owns its URL path and which side panel (if any) opens with it.
+const PAGES = {
+  welcome: { path: '/welcome', panel: null },
+  home: { path: '/home', panel: null },
+  planet: { path: '/planet', panel: null },
+  profile: { path: '/profile', panel: 'profile' },
+  shop: { path: '/shop', panel: 'store' },
 };
 
 function pushPageLocation(page, { replace = false } = {}) {
-  const path = PAGE_TO_PATH[page] ?? '/welcome';
+  const path = PAGES[page]?.path ?? '/welcome';
   if (typeof window === 'undefined') return;
   if (window.location.pathname === path) return;
   if (replace) window.history.replaceState({}, '', path);
@@ -25,37 +26,9 @@ export function useAppShellActions(shellState) {
   }
 
   function navigate(page, options = {}) {
-    if (page === 'welcome') {
-      store.set('currentPage', 'welcome');
-      store.set('activePanel', null);
-      pushPageLocation('welcome', options);
-      return;
-    }
-
-    if (page === 'profile') {
-      store.set('currentPage', 'profile');
-      store.set('activePanel', 'profile');
-      pushPageLocation('profile', options);
-      return;
-    }
-
-    if (page === 'shop') {
-      store.set('currentPage', 'shop');
-      store.set('activePanel', 'store');
-      pushPageLocation('shop', options);
-      return;
-    }
-
-    if (page === 'planet') {
-      store.set('currentPage', 'planet');
-      store.set('activePanel', null);
-      pushPageLocation('planet', options);
-      return;
-    }
-
-    store.set('currentPage', 'home');
-    store.set('activePanel', null);
-    pushPageLocation('home', options);
+    const target = PAGES[page] ? page : 'home';
+    store.update({ currentPage: target, activePanel: PAGES[target].panel });
+    pushPageLocation(target, options);
   }
 
   function openPanel(panel) {

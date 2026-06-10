@@ -17,7 +17,6 @@ export class PlanetModel {
     this.lastProgress = null;
     this._effectRoots = [];
     this._blackHoleEffects = null;
-    this._earthEffects = null;
     this._lights = [];
   }
 
@@ -94,21 +93,6 @@ export class PlanetModel {
           material.emissiveMap.anisotropy = 8;
         }
 
-        // Earth model — let the lighting rig do the work; avoid flat self-illumination
-        if (this.appearance === 'earth' && material.isMeshStandardMaterial) {
-          // Clamp roughness to a natural range; oceans tend to be smooth, terrain rough.
-          // Without being able to identify individual sub-materials, 0.65 is a good average
-          // that gives specular highlights on water without making land look metallic.
-          material.roughness = Math.min(material.roughness ?? 0.75, 0.65);
-          material.metalness = 0.0; // Earth surfaces are not metallic
-          // Do NOT add emissive — it destroys day/night contrast and creates a flat look.
-          // The hemisphere + fill lights handle dark-side visibility.
-          if (!material.map) {
-            // No albedo: default to a plausible ocean/land blue-green mix
-            material.color.set(0x4a7fbf);
-          }
-        }
-
         // Black hole model — make surfaces dark and emissive
         if (this.appearance === 'black-hole') {
           material.toneMapped = false;
@@ -121,165 +105,6 @@ export class PlanetModel {
       });
     });
   }
-
-  // ─── Earth Atmosphere (multi-layer) ────────���────────────────────────────────
-
-  buildEarthAtmosphere() {
-    const sharedSunUniform = { value: new THREE.Vector3(1, 0.3, 0.5).normalize() };
-    const sharedVertexShader = /* glsl */ `
-      varying vec3 vWorldPos;
-      varying vec3 vWorldNormal;
-      void main() {
-        vec4 worldPos = modelMatrix * vec4(position, 1.0);
-        vWorldPos = worldPos.xyz;
-        vWorldNormal = normalize(mat3(modelMatrix) * normal);
-        gl_Position = projectionMatrix * viewMatrix * worldPos;
-      }
-    `;
-
-    // ── Outer glow — wide Fresnel limb halo ──
-    // Considerably larger halo, gentle rim power for wide glow, stronger twilight band.
-    const outerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.08, 96, 96);
-    const outerMat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide,
-      uniforms: {
-        uSunDirection: sharedSunUniform,
-        uColorDay:      { value: new THREE.Color('#1e6fff') },
-        uColorLimb:     { value: new THREE.Color('#70b8ff') },
-        uColorTwilight: { value: new THREE.Color('#ff5820') },
-        uStrength:      { value: 1.8 },
-      },
-      vertexShader: sharedVertexShader,
-      fragmentShader: /* glsl */ `
-        uniform vec3 uSunDirection;
-        uniform vec3 uColorDay;
-        uniform vec3 uColorLimb;
-        uniform vec3 uColorTwilight;
-        uniform float uStrength;
-        varying vec3 vWorldPos;
-        varying vec3 vWorldNormal;
-        void main() {
-          vec3 viewDir = normalize(cameraPosition - vWorldPos);
-          vec3 n       = normalize(vWorldNormal);
-          vec3 sunDir  = normalize(uSunDirection);
-
-          // How far we are from the silhouette edge (0 = facing camera, 1 = perpendicular)
-          float facing  = max(dot(viewDir, n), 0.0);
-          float rim     = pow(1.0 - facing, 1.6); // Wider Fresnel rim
-
-          // Day/night and sun-facing influence
-          float sunDot  = dot(n, sunDir);
-          float sunSide = sunDot * 0.5 + 0.5;
-
-          // Twilight band — wider and stronger, peaks right at the terminator
-          float twilight = exp(-pow(sunDot + 0.1, 2.0) * 8.0);
-
-          vec3 color = mix(uColorDay, uColorLimb, clamp(rim, 0.0, 1.0));
-          color = mix(color, uColorTwilight, clamp(twilight * 1.5, 0.0, 1.0));
-
-          // Atmosphere is brighter on the sun-facing limb
-          float alpha = rim * uStrength * (0.3 + sunSide * 0.7);
-          gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
-        }
-      `,
-    });
-    const outerAtmo = new THREE.Mesh(outerGeo, outerMat);
-    outerAtmo.name = 'earth-atmosphere-outer';
-
-    // ── Inner scatter — bright rim hugging the surface ──
-    // Tighter rim but stronger glow against space.
-    const innerGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.03, 96, 96);
-    const innerMat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide,
-      uniforms: {
-        uSunDirection: sharedSunUniform,
-        uStrength: { value: 1.3 },
-      },
-      vertexShader: sharedVertexShader,
-      fragmentShader: /* glsl */ `
-        uniform vec3 uSunDirection;
-        uniform float uStrength;
-        varying vec3 vWorldPos;
-        varying vec3 vWorldNormal;
-        void main() {
-          vec3 viewDir = normalize(cameraPosition - vWorldPos);
-          vec3 n       = normalize(vWorldNormal);
-          vec3 sunDir  = normalize(uSunDirection);
-
-          float rim      = pow(1.0 - max(dot(viewDir, n), 0.0), 3.0); // Wider than 4.5
-          float sunSide  = max(dot(n, sunDir), 0.0);
-
-          // Cooler, more saturated blue for the inner scatter
-          vec3 color = vec3(0.45, 0.72, 1.0);
-          float alpha = rim * uStrength * (0.5 + sunSide * 0.5);
-          gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
-        }
-      `,
-    });
-    const innerAtmo = new THREE.Mesh(innerGeo, innerMat);
-    innerAtmo.name = 'earth-atmosphere-inner';
-
-    // ── Cloud haze sprite — soft white scatter just above the surface ──
-    // This breaks up the stark GLTF texture look and gives the impression of
-    // high-altitude cloud cover without needing actual cloud geometry.
-    const hazeTexture = this.createRadialTexture([
-      [0.0, 'rgba(255, 255, 255, 0.0)'],
-      [0.72, 'rgba(255, 255, 255, 0.0)'],
-      [0.84, 'rgba(255, 255, 255, 0.10)'],
-      [0.93, 'rgba(240, 248, 255, 0.22)'],
-      [1.0, 'rgba(255, 255, 255, 0.0)'],
-    ], 512);
-    const haze = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: hazeTexture,
-      transparent: true,
-      opacity: 1.0,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    }));
-    haze.scale.setScalar(PLANET_RADIUS * 2.18);
-    haze.name = 'earth-cloud-haze';
-
-    this.group.add(outerAtmo, innerAtmo, haze);
-    this._effectRoots.push(outerAtmo, innerAtmo, haze);
-    this._earthEffects = {
-      outerAtmo,
-      innerAtmo,
-      haze,
-      sunUniform: sharedSunUniform,
-    };
-  }
-
-  // ─── Earth Lighting ─────────────────────────────────────────────────────────
-
-  buildEarthLighting() {
-    // Key sunlight
-    const sun = new THREE.DirectionalLight(0xfff4e0, 2.2);
-    sun.position.set(20, 8, 15);
-    sun.name = 'earth-sun';
-    this.scene.add(sun);
-
-    // Hemisphere for natural ambient (sky blue + ground dark blue)
-    const hemi = new THREE.HemisphereLight(0x6699cc, 0x111122, 0.35);
-    hemi.name = 'earth-hemi';
-    this.scene.add(hemi);
-
-    // Subtle fill from behind to define outline on dark side
-    const fill = new THREE.DirectionalLight(0x223355, 0.25);
-    fill.position.set(-15, -4, -10);
-    fill.name = 'earth-fill';
-    this.scene.add(fill);
-
-    this._lights.push(sun, hemi, fill);
-    this._earthLights = { sun, hemi, fill };
-  }
-
   // ─── Black Hole Effects (overhauled) ────────────────────────────────────────
 
   buildBlackHoleEffects() {
@@ -572,14 +397,10 @@ export class PlanetModel {
               this.group.add(model);
               this._effectRoots = [];
               this._blackHoleEffects = null;
-              this._earthEffects = null;
 
               if (this.appearance === 'black-hole') {
                 this.buildBlackHoleEffects();
                 this.buildBlackHoleLighting();
-              } else if (this.appearance === 'earth') {
-                this.buildEarthAtmosphere();
-                this.buildEarthLighting();
               }
 
               this.isLoaded = true;
@@ -615,16 +436,6 @@ export class PlanetModel {
 
     if (this._blackHoleEffects) {
       this._updateBlackHole(elapsed);
-    }
-  }
-
-  /** Sync sun direction from the main scene's day/night cycle. */
-  setSunDirection(dir) {
-    if (this._earthEffects?.sunUniform) {
-      this._earthEffects.sunUniform.value.copy(dir);
-    }
-    if (this._earthLights?.sun) {
-      this._earthLights.sun.position.copy(dir).multiplyScalar(50);
     }
   }
 

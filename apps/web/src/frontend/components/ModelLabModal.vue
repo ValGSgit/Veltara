@@ -175,13 +175,13 @@ async function loadModelFile(file) {
         child.material.forEach((material) => {
           if (!material) return;
           if ('map' in material && material.map) {
-            material.map.colorSpace = THREE.SRGBColorSpace;
+            material.map.encoding = THREE.sRGBEncoding;
           }
           material.needsUpdate = true;
         });
       } else if (child.material) {
         if ('map' in child.material && child.material.map) {
-          child.material.map.colorSpace = THREE.SRGBColorSpace;
+          child.material.map.encoding = THREE.sRGBEncoding;
         }
         child.material.needsUpdate = true;
       }
@@ -216,7 +216,7 @@ function initScene() {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(width, height);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.outputEncoding = THREE.sRGBEncoding; // three r128 API (SRGBColorSpace is r152+)
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
   viewportRef.value.innerHTML = '';
