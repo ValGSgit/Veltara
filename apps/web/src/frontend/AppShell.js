@@ -104,6 +104,14 @@ export function mountAppShell() {
         return [...regions.value].sort((a, b) => (b.users ?? 0) - (a.users ?? 0))[0] ?? activeRegion.value;
       });
 
+      const chatMessages = computed(() => {
+        const messages = shellState.chatMessages ?? [];
+        const tab = shellState.chatTab ?? 'local';
+        return messages
+          .filter((message) => (tab === 'global' ? message.is_global : !message.is_global))
+          .slice(-50);
+      });
+
       const sandboxObjectCount = computed(() => {
         const objects = shellState.sandboxObjects;
         return objects instanceof Map ? objects.size : 0;
@@ -157,6 +165,7 @@ export function mountAppShell() {
         clock,
         totalOnline,
         featuredRegion,
+        chatMessages,
         isHomeSurface,
         activeRegionLand,
         sandboxObjectCount,
@@ -194,12 +203,15 @@ export function mountAppShell() {
           :regions="regions"
           :featured-region="featuredRegion"
           :nearby-players="nearbyPlayers"
+          :chat-messages="chatMessages"
           :total-online="totalOnline"
           :clock="clock"
           :active-events="activeEvents"
           :quick-region="quickRegion"
           :teleport="teleport"
           :open-panel="openPanel"
+          :set-chat-tab="setChatTab"
+          :send-chat="sendChat"
           :is-authenticated="shellState.isAuthenticated"
           :player-name="playerName"
           :player-action="playerAction"

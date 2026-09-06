@@ -8,12 +8,15 @@ defineProps({
   regions:        { type: Array,    required: true },
   featuredRegion: { type: Object,   required: true },
   nearbyPlayers:  { type: Array,    required: true },
+  chatMessages:   { type: Array,    required: true },
   totalOnline:    { type: Number,   required: true },
   clock:          { type: String,   required: true },
   activeEvents:   { type: Array,    required: true },
   quickRegion:    { type: Function, required: true },
   teleport:       { type: Function, required: true },
   openPanel:      { type: Function, required: true },
+  setChatTab:     { type: Function, required: true },
+  sendChat:       { type: Function, required: true },
   goPlanet:       { type: Function, required: true },
   isAuthenticated:{ type: Boolean,  required: true },
   playerName:     { type: Function, required: true },
@@ -90,6 +93,20 @@ defineProps({
             <div class="event-card__title">{{ evt.title ?? 'World event' }}</div>
             <div class="event-card__desc">{{ evt.description ?? evt.text ?? 'A live system event is active.' }}</div>
           </div>
+        </div>
+        <div class="home__chat">
+          <div class="home__chat-tabs">
+            <button class="home__chat-tab" :class="{ 'home__chat-tab--active': shellState.chatTab === 'local' }" @click="setChatTab('local')">Local</button>
+            <button class="home__chat-tab" :class="{ 'home__chat-tab--active': shellState.chatTab === 'global' }" @click="setChatTab('global')">Global</button>
+          </div>
+          <div class="home__chat-stream" role="log" aria-label="Chat messages" aria-live="polite">
+            <EmptyState v-if="!chatMessages.length" text="No messages yet." />
+            <div v-for="msg in chatMessages" :key="msg.id ?? msg.timestamp ?? msg.text" class="home__chat-message">
+              <strong>{{ msg.is_npc ? 'AI ' : '' }}{{ msg.username ?? msg.author ?? 'Explorer' }}</strong>
+              <span>{{ msg.text }}</span>
+            </div>
+          </div>
+          <input class="home__chat-input" type="text" maxlength="500" placeholder="Message the world..." @keydown="sendChat" />
         </div>
       </PanelCard>
     </div>
@@ -287,6 +304,76 @@ defineProps({
   display: block;
   margin-top: 2px;
   font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.home__chat {
+  display: grid;
+  gap: 8px;
+}
+
+.home__chat-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.home__chat-tab {
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: #d4e4ff;
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  transition: var(--pill-transition);
+}
+
+.home__chat-tab--active {
+  border-color: var(--glow-border);
+  background: var(--glow-bg);
+  color: #f4f8ff;
+}
+
+.home__chat-stream {
+  display: grid;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.home__chat-message {
+  border: 1px solid var(--glass-border);
+  border-radius: 0.9rem;
+  padding: 9px 11px;
+  background: var(--glass-bg);
+}
+
+.home__chat-message strong {
+  display: block;
+  font-size: 0.78rem;
+  color: #f4f8ff;
+  margin-bottom: 2px;
+}
+
+.home__chat-message span {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.home__chat-input {
+  width: 100%;
+  border-radius: 0.9rem;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: #fff;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.home__chat-input::placeholder {
   color: var(--text-muted);
 }
 
