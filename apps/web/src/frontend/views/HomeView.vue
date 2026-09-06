@@ -1,5 +1,4 @@
 <script setup>
-import SocialHubView from '../components/SocialHubView.vue';
 import PanelCard from '../components/ui/PanelCard.vue';
 import EmptyState from '../components/ui/EmptyState.vue';
 
@@ -28,24 +27,18 @@ defineProps({
 
 <template>
   <section class="home">
-
-    <!-- Hero -->
     <PanelCard as="article" class="home__hero">
-      <div class="home__hero-content">
-        <p class="home__eyebrow">Veltara · Live world</p>
-        <h1 class="home__title">Explore a shared planet,<br>live with others.</h1>
-        <p class="home__sub">
-          Jump into active regions, chat with nearby explorers, and build persistent structures in region land.
-          Everything happens in real time.
-        </p>
-        <div class="home__actions">
-          <button class="home-btn home-btn--primary" @click="goPlanet">Enter planet</button>
-          <button class="home-btn home-btn--ghost" @click="quickRegion">Quick jump</button>
-          <button class="home-btn home-btn--ghost" @click="openPanel('social')">Social feed</button>
-          <button v-if="!isAuthenticated" class="home-btn home-btn--ghost" @click="openPanel('settings')">Get started</button>
-        </div>
+      <p class="home__eyebrow">Veltara lobby</p>
+      <h1 class="home__title">Step into a shared, living planet.</h1>
+      <p class="home__sub">
+        Use the lobby to pick a region, check live activity, and jump into the world with other explorers.
+      </p>
+      <div class="home__actions">
+        <button class="home-btn home-btn--primary" @click="goPlanet">Enter planet</button>
+        <button class="home-btn home-btn--ghost" @click="quickRegion">Quick jump</button>
+        <button class="home-btn home-btn--ghost" @click="openPanel('social')">Open social</button>
+        <button v-if="!isAuthenticated" class="home-btn home-btn--ghost" @click="openPanel('settings')">Get started</button>
       </div>
-
       <div class="home__stats">
         <div class="home__stat">
           <strong class="home__stat-value home__stat-value--glow">{{ totalOnline }}</strong>
@@ -66,35 +59,41 @@ defineProps({
       </div>
     </PanelCard>
 
-    <!-- Events row -->
-    <PanelCard v-if="activeEvents.length" as="article" class="home__events">
-      <p class="home__section-label">Live events</p>
-      <div class="home__events-list">
-        <div
-          v-for="evt in activeEvents.slice(0, 4)"
-          :key="evt.id ?? evt.title"
-          class="event-card"
-        >
-          <div class="event-card__title">{{ evt.title ?? 'World event' }}</div>
-          <div class="event-card__desc">{{ evt.description ?? evt.text ?? 'A live system event is active.' }}</div>
+    <div class="home__grid">
+      <PanelCard as="article" class="home__regions">
+        <p class="home__section-label">Region lobby</p>
+        <div class="home__region-list">
+          <button
+            v-for="region in regions.slice(0, 6)"
+            :key="region.id"
+            class="home__region"
+            :class="{ 'home__region--active': region.id === shellState.selfRegionId }"
+            @click="teleport(region.id)"
+          >
+            <span class="home__region-name">{{ region.name }}</span>
+            <span class="home__region-meta">{{ region.users ?? 0 }} online</span>
+          </button>
         </div>
-      </div>
-    </PanelCard>
+      </PanelCard>
 
-    <!-- Social hub -->
-    <SocialHubView
-      :shell-state="shellState"
-      :regions="regions"
-      :nearby-players="nearbyPlayers"
-      :chat-messages="chatMessages"
-      :teleport="teleport"
-      :set-chat-tab="setChatTab"
-      :send-chat="sendChat"
-      :player-name="playerName"
-      :player-action="playerAction"
-      :player-region="playerRegion"
-    />
-
+      <PanelCard as="article" class="home__activity">
+        <p class="home__section-label">Live activity</p>
+        <div class="home__players">
+          <EmptyState v-if="!nearbyPlayers.length" text="No nearby players yet." />
+          <div v-for="player in nearbyPlayers.slice(0, 4)" :key="player.id" class="home__player">
+            <strong>{{ playerName(player) }}</strong>
+            <span>{{ playerAction(player) }} · {{ playerRegion(player) }}</span>
+          </div>
+        </div>
+        <div class="home__events">
+          <EmptyState v-if="!activeEvents.length" text="No active events." />
+          <div v-for="evt in activeEvents.slice(0, 3)" :key="evt.id ?? evt.title" class="event-card">
+            <div class="event-card__title">{{ evt.title ?? 'World event' }}</div>
+            <div class="event-card__desc">{{ evt.description ?? evt.text ?? 'A live system event is active.' }}</div>
+          </div>
+        </div>
+      </PanelCard>
+    </div>
   </section>
 </template>
 
@@ -103,27 +102,19 @@ defineProps({
   width: min(1180px, calc(100vw - 24px));
   margin: 88px auto 0;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
-
-/* ─── Hero ─────────────────────────────────────────────────────────────────── */
 
 .home__hero {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 24px;
-  align-items: start;
-  padding: 28px 32px;
+  gap: 16px;
+  padding: 24px 26px;
   border-radius: 1.4rem;
   animation: homeFadeIn 220ms ease both;
 }
 
-.home__hero-content {
-  min-width: 0;
-}
-
 .home__eyebrow {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -131,14 +122,14 @@ defineProps({
 }
 
 .home__title {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: clamp(1.6rem, 3vw, 2.4rem);
   line-height: 1.1;
   color: #f4f8ff;
 }
 
 .home__sub {
-  margin: 0 0 20px;
+  margin: 0;
   color: var(--text-muted);
   font-size: 0.88rem;
   line-height: 1.55;
@@ -149,6 +140,12 @@ defineProps({
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.home__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
 }
 
 .home-btn {
@@ -182,16 +179,6 @@ defineProps({
   transform: translateY(-1px);
 }
 
-/* ─── Stats ────────────────────────────────────────────────────────────────── */
-
-.home__stats {
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: repeat(4, 1fr);
-  gap: 8px;
-  min-width: 140px;
-}
-
 .home__stat {
   padding: 10px 14px;
   border-radius: 0.9rem;
@@ -221,25 +208,81 @@ defineProps({
   color: var(--text-muted);
 }
 
-/* ─── Events ───────────────────────────────────────────────────────────────── */
+.home__grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 12px;
+}
 
-.home__events {
+.home__regions,
+.home__activity {
   border-radius: 1.25rem;
-  animation: homeFadeIn 220ms 40ms ease both;
+  display: grid;
+  gap: 10px;
 }
 
 .home__section-label {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.2em;
   color: var(--text-muted);
 }
 
-.home__events-list {
+.home__region-list,
+.home__players,
+.home__events {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 8px;
+}
+
+.home__region {
+  border: 1px solid var(--glass-border);
+  border-radius: 0.9rem;
+  background: var(--glass-bg);
+  color: #f4f8ff;
+  text-align: left;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  transition: var(--pill-transition);
+  cursor: pointer;
+}
+
+.home__region:hover,
+.home__region--active {
+  border-color: var(--glow-border);
+  background: var(--glow-bg);
+}
+
+.home__region-name {
+  font-weight: 600;
+}
+
+.home__region-meta {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.home__player {
+  border: 1px solid var(--glass-border);
+  border-radius: 0.9rem;
+  padding: 10px 12px;
+  background: var(--glass-bg);
+}
+
+.home__player strong {
+  display: block;
+  font-size: 0.82rem;
+  color: #f4f8ff;
+}
+
+.home__player span {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
 }
 
 .home__events .event-card {
@@ -252,26 +295,20 @@ defineProps({
   transform: translateY(-1px);
 }
 
-/* ─── Responsive ───────────────────────────────────────────────────────────── */
-
-@media (max-width: 860px) {
-  .home__hero {
+@media (max-width: 900px) {
+  .home__grid {
     grid-template-columns: 1fr;
-    padding: 22px 20px;
   }
-
   .home__stats {
     grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: 1fr;
   }
 }
 
 @media (max-width: 560px) {
   .home__stats {
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(2, 1fr);
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
-}
 
 @keyframes homeFadeIn {
   from { opacity: 0; transform: translateY(6px); }
