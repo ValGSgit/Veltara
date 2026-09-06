@@ -8,15 +8,12 @@ defineProps({
   regions:        { type: Array,    required: true },
   featuredRegion: { type: Object,   required: true },
   nearbyPlayers:  { type: Array,    required: true },
-  chatMessages:   { type: Array,    required: true },
   totalOnline:    { type: Number,   required: true },
   clock:          { type: String,   required: true },
   activeEvents:   { type: Array,    required: true },
   quickRegion:    { type: Function, required: true },
   teleport:       { type: Function, required: true },
   openPanel:      { type: Function, required: true },
-  setChatTab:     { type: Function, required: true },
-  sendChat:       { type: Function, required: true },
   goPlanet:       { type: Function, required: true },
   isAuthenticated:{ type: Boolean,  required: true },
   playerName:     { type: Function, required: true },
@@ -64,10 +61,12 @@ defineProps({
         <p class="home__section-label">Region lobby</p>
         <div class="home__region-list">
           <button
-            v-for="region in regions.slice(0, 6)"
+            v-for="region in regions"
             :key="region.id"
             class="home__region"
             :class="{ 'home__region--active': region.id === shellState.selfRegionId }"
+            :aria-current="region.id === shellState.selfRegionId ? 'location' : undefined"
+            :aria-label="`Teleport to ${region.name} (${region.users ?? 0} online)`"
             @click="teleport(region.id)"
           >
             <span class="home__region-name">{{ region.name }}</span>
@@ -236,6 +235,12 @@ defineProps({
   gap: 8px;
 }
 
+.home__region-list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 .home__region {
   border: 1px solid var(--glass-border);
   border-radius: 0.9rem;
@@ -306,9 +311,9 @@ defineProps({
 
 @media (max-width: 560px) {
   .home__stats {
-      grid-template-columns: repeat(2, 1fr);
-    }
+    grid-template-columns: repeat(2, 1fr);
   }
+}
 
 @keyframes homeFadeIn {
   from { opacity: 0; transform: translateY(6px); }
